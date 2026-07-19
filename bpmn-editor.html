@@ -1,0 +1,1444 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Primal プロセスエディタ</title>
+<style>
+  :root{
+    --bg:#f1f5f9; --panel:#ffffff; --border:#e2e8f0; --line:#f1f5f9;
+    --text:#1e293b; --muted:#64748b; --faint:#94a3b8;
+    --primal:#04528F; --primal-dk:#033c69; --primal-lt:#EAF2F9;
+    --navy:#1F497D; --accent:#4F81BD; --offwhite:#EEECE1;
+    --rose:#e11d48;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;height:100%;}
+  body{
+    font-family:"メイリオ",Meiryo,system-ui,-apple-system,"Segoe UI","Hiragino Kaku Gothic ProN",sans-serif;
+    color:var(--text);background:var(--bg);
+    -webkit-user-select:none;user-select:none;overflow:hidden;
+  }
+  #app{display:flex;flex-direction:column;height:100vh;}
+
+  header{
+    height:56px;flex:none;display:flex;align-items:center;gap:4px;
+    padding:0 12px;background:var(--panel);border-bottom:1px solid var(--border);
+  }
+  .brand{display:flex;align-items:center;gap:10px;padding-right:14px;margin-right:6px;border-right:1px solid var(--border);}
+  .brand img.logo{height:26px;width:auto;display:block;}
+  .brand .appname{font-weight:600;letter-spacing:-.01em;color:var(--navy);font-size:15px;}
+  .sep{width:1px;height:24px;background:var(--border);margin:0 4px;}
+  .spacer{flex:1;}
+  .tbtn{height:36px;width:36px;border:0;background:none;border-radius:8px;display:flex;align-items:center;justify-content:center;color:var(--muted);cursor:pointer;}
+  .tbtn:hover:not(:disabled){background:#f1f5f9;}
+  .tbtn.active{background:var(--primal);color:#fff;}
+  .tbtn:disabled{color:#cbd5e1;cursor:not-allowed;}
+  .tlabel{height:36px;padding:0 12px;border:0;background:none;border-radius:8px;display:inline-flex;align-items:center;gap:6px;color:var(--muted);font-size:14px;cursor:pointer;font-family:inherit;}
+  .tlabel:hover{background:#f1f5f9;}
+  .tlabel.primary{background:var(--primal);color:#fff;}
+  .tlabel.primary:hover{background:var(--primal-dk);}
+  .zoomval{font-size:12px;width:42px;text-align:center;color:var(--muted);font-variant-numeric:tabular-nums;}
+  .seg{display:inline-flex;background:#eef2f7;border-radius:8px;padding:2px;gap:2px;}
+  .segbtn{border:0;background:none;font-family:inherit;font-size:13px;font-weight:600;padding:6px 14px;border-radius:6px;color:var(--muted);cursor:pointer;}
+  .segbtn.active{background:var(--primal);color:#fff;box-shadow:0 1px 3px rgba(4,82,143,.35);}
+  .segbtn.canbe.active{background:#B45309;box-shadow:0 1px 3px rgba(180,83,9,.35);}
+  .segbtn.tobe.active{background:#0a7a43;box-shadow:0 1px 3px rgba(10,122,67,.35);}
+  #phasebadge{position:absolute;top:12px;right:14px;z-index:5;font-size:12px;font-weight:700;padding:5px 12px;border-radius:999px;background:rgba(4,82,143,.10);color:var(--primal);pointer-events:none;}
+  #phasebadge.canbe{background:rgba(180,83,9,.12);color:#B45309;}
+  #phasebadge.tobe{background:rgba(10,122,67,.12);color:#0a7a43;}
+
+  .layout{flex:1;display:flex;min-height:0;}
+  aside{flex:none;background:var(--panel);overflow-y:auto;}
+  .palette{width:210px;border-right:1px solid var(--border);padding:12px 0;}
+  .props{width:256px;border-left:1px solid var(--border);display:flex;flex-direction:column;}
+  .canvas{flex:1;position:relative;min-width:0;background:var(--bg);overflow:hidden;}
+  svg#svg{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;}
+
+  .pcap{padding:0 16px 8px;font-size:11px;font-weight:600;letter-spacing:.08em;color:var(--faint);}
+  .pgroup{margin-bottom:12px;}
+  .pglabel{padding:4px 16px;font-size:12px;font-weight:500;color:var(--muted);}
+  .pitem{width:100%;display:flex;align-items:center;gap:10px;padding:6px 16px;font-size:14px;color:#334155;background:none;border:0;cursor:grab;text-align:left;font-family:inherit;}
+  .pitem:hover{background:var(--primal-lt);}
+  .pitem:active{cursor:grabbing;}
+  .pitem .dot{width:20px;height:20px;display:flex;align-items:center;justify-content:center;}
+  .phint{padding:6px 16px 0;font-size:11px;line-height:1.6;color:var(--faint);}
+
+  .pscroll{flex:1;overflow-y:auto;}
+  .psec{padding:16px;}
+  .psec .cap{font-size:11px;font-weight:600;letter-spacing:.08em;color:var(--faint);margin-bottom:12px;}
+  .empty-prop{font-size:14px;color:var(--faint);}
+  .field{display:block;margin-bottom:16px;}
+  .field>span{display:block;font-size:12px;color:var(--muted);margin-bottom:4px;}
+  .field input[type=text],.field textarea,.field select,.field input[type=number]{
+    width:100%;font-size:14px;padding:7px 8px;border:1px solid #cbd5e1;border-radius:6px;outline:none;font-family:inherit;background:#fff;color:var(--text);
+  }
+  .field textarea{resize:none;}
+  .field input:focus,.field textarea:focus,.field select:focus{border-color:var(--primal);}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+  .colorrow{display:flex;align-items:center;gap:12px;}
+  .colorpick{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);cursor:pointer;}
+  .colorpick input[type=color]{width:28px;height:28px;border:1px solid #cbd5e1;border-radius:6px;padding:0;cursor:pointer;background:none;}
+  .lanerow{display:flex;align-items:center;gap:6px;margin-bottom:6px;}
+  .lanerow input[type=text]{flex:1;font-size:13px;padding:6px 8px;border:1px solid #cbd5e1;border-radius:6px;outline:none;font-family:inherit;}
+  .lanerow input[type=text]:focus{border-color:var(--primal);}
+  .lanerow .lhandle{color:var(--faint);font-size:12px;width:14px;text-align:center;}
+  .lanerow .lrm{border:0;background:none;color:var(--faint);cursor:pointer;padding:4px;border-radius:4px;line-height:0;}
+  .lanerow .lrm:hover{color:var(--rose);background:#fff1f2;}
+  .addlane{width:100%;margin-top:4px;font-size:13px;color:var(--primal);background:var(--primal-lt);border:0;padding:8px 0;border-radius:6px;cursor:pointer;font-family:inherit;}
+  .ichips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px;}
+  .sizebtns{display:flex;gap:8px;}
+  .chchips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:4px;}
+  .chchip{display:inline-flex;align-items:center;gap:5px;font-family:inherit;font-size:12px;padding:5px 9px;border:1.5px solid var(--cc);border-radius:999px;background:#fff;color:var(--cc);cursor:pointer;}
+  .chchip .ci{display:inline-flex;}
+  .chchip.on{background:var(--cc);color:#fff;}
+  .chchip:hover{filter:brightness(0.97);}
+  .sizebtns button{flex:1;font-family:inherit;font-size:13px;padding:8px 0;border:1px solid #cbd5e1;border-radius:6px;background:#fff;color:var(--text);cursor:pointer;}
+  .sizebtns button:hover{background:var(--primal-lt);border-color:var(--primal);color:var(--primal);}
+  .ichip{font-family:inherit;font-size:12px;padding:5px 10px;border:1.5px solid;border-radius:999px;background:#fff;cursor:pointer;}
+  .ichip:hover{background:#f8fafc;}
+  .addlane:hover{background:#dce9f4;}
+  .delbtn{width:100%;margin-top:8px;font-size:14px;color:var(--rose);background:none;border:0;padding:7px 0;border-radius:6px;cursor:pointer;font-family:inherit;}
+  .delbtn:hover{background:#fff1f2;}
+  .tips{padding:12px 16px;border-top:1px solid var(--line);}
+  .tips .cap{font-size:11px;font-weight:600;letter-spacing:.08em;color:var(--faint);margin-bottom:8px;}
+  .tips ul{margin:0;padding:0;list-style:none;font-size:12px;color:var(--muted);line-height:1.7;}
+  .clearbtn{width:100%;margin-top:12px;font-size:12px;color:var(--faint);background:none;border:0;padding:6px 0;cursor:pointer;font-family:inherit;}
+  .clearbtn:hover{color:var(--rose);}
+  .credit{padding:10px 16px;font-size:10px;color:var(--faint);border-top:1px solid var(--line);background:var(--panel);}
+
+  .empty-canvas{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;}
+  .empty-canvas .inner{text-align:center;color:var(--faint);}
+  .empty-canvas .inner p{margin:4px 0;font-size:14px;}
+  .empty-canvas .inner .sub{font-size:12px;}
+  .ghost{position:fixed;z-index:50;pointer-events:none;padding:5px 10px;border-radius:6px;background:var(--primal);color:#fff;font-size:12px;box-shadow:0 6px 16px rgba(0,0,0,.18);}
+  .edit-input{position:absolute;z-index:40;font-family:inherit;text-align:center;font-size:13px;padding:3px 6px;border:1px solid var(--primal);border-radius:6px;outline:none;background:#fff;box-shadow:0 4px 12px rgba(0,0,0,.12);}
+  .toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);z-index:60;background:#0F243E;color:#fff;font-size:13px;padding:8px 16px;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.2);opacity:0;transition:opacity .2s;pointer-events:none;}
+  .toast.show{opacity:1;}
+  svg text{user-select:none;}
+
+  .wv{position:fixed;inset:0;z-index:200;background:rgba(15,36,62,.45);display:none;align-items:center;justify-content:center;padding:24px;}
+  .wv-panel{background:#fff;border-radius:12px;width:min(960px,96vw);max-height:90vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,.32);}
+  .wv-head{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border);}
+  .wv-title{font-weight:600;color:var(--navy);font-size:16px;}
+  .wv-close{border:0;background:none;font-size:24px;color:var(--muted);cursor:pointer;line-height:1;padding:0 4px;}
+  .wv-close:hover{color:var(--text);}
+  .wv-summary{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;padding:16px 20px;}
+  .wv-card{background:var(--primal-lt);border-radius:10px;padding:12px 14px;}
+  .wv-card .l{font-size:11px;color:var(--muted);margin-bottom:2px;}
+  .wv-card .v{font-size:24px;font-weight:700;color:var(--primal);font-variant-numeric:tabular-nums;}
+  .wv-card.red .v{color:#0a7a43;}
+  .wv-tablewrap{overflow:auto;padding:0 20px;flex:1;}
+  table.wv-t{border-collapse:collapse;width:100%;font-size:13px;}
+  table.wv-t th{position:sticky;top:0;background:var(--primal);color:#fff;padding:8px 6px;font-weight:600;white-space:nowrap;z-index:1;}
+  table.wv-t td{border:1px solid var(--border);padding:3px 6px;vertical-align:middle;}
+  table.wv-t td.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;}
+  table.wv-t input,table.wv-t select{width:100%;border:1px solid transparent;background:none;font-family:inherit;font-size:13px;padding:5px 6px;border-radius:5px;color:var(--text);}
+  table.wv-t input:hover,table.wv-t select:hover{background:#f8fafc;}
+  table.wv-t input:focus,table.wv-t select:focus{border-color:var(--primal);background:#fff;outline:none;}
+  table.wv-t input.num{text-align:right;}
+  table.wv-t input[type=number]{width:74px;}
+  table.wv-t tr.tr-total td{background:var(--primal-lt);font-weight:700;}
+  .wv-foot{display:flex;gap:8px;justify-content:flex-end;padding:14px 20px;border-top:1px solid var(--border);}
+  .wv-foot button{font-family:inherit;font-size:13px;padding:8px 16px;border-radius:8px;border:1px solid var(--border);background:#fff;color:var(--text);cursor:pointer;}
+  .wv-foot button:hover{background:#f1f5f9;}
+  .wv-foot button.primary{background:var(--primal);color:#fff;border-color:var(--primal);}
+  .wv-foot button.primary:hover{background:var(--primal-dk);}
+
+  .ai-body{overflow:auto;padding:4px 20px 8px;flex:1;}
+  .ai-step{margin:14px 0;}
+  .ai-step .h{display:flex;align-items:center;gap:8px;font-weight:600;color:var(--navy);font-size:14px;margin-bottom:8px;}
+  .ai-step .num{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:999px;background:var(--primal);color:#fff;font-size:12px;}
+  .ai-ta{width:100%;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;line-height:1.5;border:1px solid #cbd5e1;border-radius:8px;padding:10px;resize:vertical;color:#334155;background:#f8fafc;}
+  .ai-note{font-size:12px;color:var(--muted);margin:6px 0 0;line-height:1.6;}
+  .ai-btn{font-family:inherit;font-size:13px;padding:8px 14px;border-radius:8px;border:1px solid var(--border);background:#fff;color:var(--text);cursor:pointer;}
+  .ai-btn:hover{background:#f1f5f9;}
+  .ai-btn.primary{background:var(--primal);color:#fff;border-color:var(--primal);}
+  .ai-btn.primary:hover{background:var(--primal-dk);}
+  .ai-plans{display:flex;flex-direction:column;gap:12px;margin-top:6px;}
+  .ai-plan{border:1px solid var(--border);border-radius:10px;padding:14px;}
+  .ai-plan .pt{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:6px;}
+  .ai-plan h4{margin:0;font-size:15px;color:var(--navy);}
+  .ai-plan .badge{font-size:11px;font-weight:600;padding:3px 9px;border-radius:999px;background:var(--primal-lt);color:var(--primal);white-space:nowrap;}
+  .ai-plan .concept{font-size:13px;color:#475569;margin:2px 0 8px;line-height:1.6;}
+  .ai-plan ul{margin:6px 0;padding-left:18px;font-size:12.5px;color:#475569;line-height:1.7;}
+  .ai-plan .red{font-size:13px;font-weight:700;color:#0a7a43;margin:6px 0;}
+  .ai-details{border:1px solid var(--border);border-radius:8px;padding:8px 12px;margin-top:10px;}
+  .ai-details summary{cursor:pointer;font-size:13px;color:var(--muted);}
+  .ai-row{display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap;}
+  .ai-row input{font-family:inherit;font-size:13px;padding:7px 8px;border:1px solid #cbd5e1;border-radius:6px;}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div class="brand">
+      <img class="logo" src="data:image/png;base64,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" alt="Primal">
+      <span class="appname">プロセスエディタ</span>
+    </div>
+
+    <button class="tbtn" id="undo" title="元に戻す (Ctrl+Z)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></svg></button>
+    <button class="tbtn" id="redo" title="やり直し (Ctrl+Y)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 7v6h-6"/><path d="M3 17a9 9 0 0 1 9-9 9 9 0 0 1 6 2.3L21 13"/></svg></button>
+    <div class="sep"></div>
+
+    <button class="tbtn" id="addpool" title="スイムレーン（担当行）を追加"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M3 15h18M9 4v16"/></svg></button>
+    <button class="tbtn" id="del" title="選択を削除 (Delete)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
+    <div class="sep"></div>
+    <div class="seg" id="phaseseg">
+      <button class="segbtn active" id="ph-asis">As-Is</button>
+      <button class="segbtn canbe" id="ph-canbe">Can-Be</button>
+      <button class="segbtn tobe" id="ph-tobe">To-Be</button>
+    </div>
+    <div class="sep"></div>
+
+    <button class="tbtn" id="grid" title="グリッド表示"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18M15 3v18"/></svg></button>
+    <button class="tbtn" id="zin" title="拡大"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3M11 8v6M8 11h6"/></svg></button>
+    <span class="zoomval" id="zoomval">100%</span>
+    <button class="tbtn" id="zout" title="縮小"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3M8 11h6"/></svg></button>
+    <button class="tbtn" id="fit" title="全体表示"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg></button>
+
+    <div class="spacer"></div>
+
+    <label class="tlabel" title="JSONを読み込む"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m17 8-5-5-5 5M12 3v12"/></svg>開く<input type="file" id="file" accept="application/json,.json" hidden></label>
+    <button class="tlabel" id="savejson" title="JSONで保存"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5M12 15V3"/></svg>保存</button>
+    <button class="tlabel" id="xls-exp" title="業務量を表示・編集"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18M15 3v18"/></svg>業務量</button>
+    <button class="tlabel" id="svg-exp"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M12 18v-6M9 15l3 3 3-3"/></svg>SVG</button>
+    <button class="tlabel" id="ai-btn" title="AIでTo-Be / Can-Be案を作る"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/><circle cx="12" cy="12" r="3.2"/></svg>AI改善案</button>
+    <button class="tlabel" id="copy-img" title="図を画像でコピー（パワポにそのまま貼付）"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>コピー</button>
+    <button class="tlabel primary" id="png-exp"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21"/></svg>PNG</button>
+  </header>
+
+  <div class="layout">
+    <aside class="palette">
+      <div class="pcap">パーツ</div>
+      <div id="palette"></div>
+      <p class="phint">ドラッグでキャンバスに配置。ノードにカーソルを合わせると出る青丸を引っぱって矢印で繋ぎます。</p>
+    </aside>
+
+    <main class="canvas" id="canvas">
+      <div id="phasebadge">As-Is（現状）</div>
+      <svg id="svg" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="12" markerHeight="12" markerUnits="userSpaceOnUse" orient="auto"><path d="M0 0.5 L9.5 5 L0 9.5 z" fill="#334155"/></marker>
+          <marker id="arrow-sel" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="12" markerHeight="12" markerUnits="userSpaceOnUse" orient="auto"><path d="M0 0.5 L9.5 5 L0 9.5 z" fill="#4F81BD"/></marker>
+          <marker id="arrow-open" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="13" markerHeight="13" markerUnits="userSpaceOnUse" orient="auto"><path d="M1 1 L10 6 L1 11" fill="none" stroke="#334155" stroke-width="1.6"/></marker>
+          <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r="1" fill="#cbd5e1"/></pattern>
+        </defs>
+        <rect id="bgrect" x="0" y="0" width="100%" height="100%" fill="#f1f5f9"></rect>
+        <rect id="gridrect" x="0" y="0" width="100%" height="100%" fill="url(#grid)"></rect>
+        <g id="world"></g>
+      </svg>
+      <div class="empty-canvas" id="empty">
+        <div class="inner">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="opacity:.5"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M3 15h18M9 4v16"/></svg>
+          <p>「担当行を追加」でスイムレーンを置くか、左のパーツをドラッグして始めましょう</p>
+          <p class="sub">ダブルクリックで名前を編集 / Ctrl+ホイールで拡大縮小</p>
+        </div>
+      </div>
+    </main>
+
+    <aside class="props">
+      <div class="pscroll" id="props"></div>
+      <div class="credit">© Primal Corp. All rights reserved.</div>
+    </aside>
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+<div id="workview" class="wv"></div>
+<div id="aiview" class="wv"></div>
+
+<script>
+(function(){
+  "use strict";
+
+  const NODE_DEFS = {
+    start:        {kind:"event",   shape:"circle",  w:48,  h:48,  fill:"#ECFDF5", stroke:"#059669", label:"開始"},
+    end:          {kind:"event",   shape:"circle",  w:48,  h:48,  fill:"#FEF2F2", stroke:"#E11D48", label:"終了", thick:true},
+    intermediate: {kind:"event",   shape:"circle",  w:48,  h:48,  fill:"#FFFBEB", stroke:"#D97706", label:"中間イベント", dbl:true},
+    task:         {kind:"task",    shape:"rect",    w:132, h:76,  fill:"#EAF2F9", stroke:"#04528F", label:"タスク"},
+    subprocess:   {kind:"task",    shape:"rect",    w:148, h:84,  fill:"#E3EDF5", stroke:"#1F497D", label:"サブプロセス", sub:true},
+    gatewayX:     {kind:"gateway", shape:"diamond", w:60,  h:60,  fill:"#FFFBEB", stroke:"#D97706", label:"排他分岐", sym:"x"},
+    gatewayP:     {kind:"gateway", shape:"diamond", w:60,  h:60,  fill:"#FFFBEB", stroke:"#D97706", label:"並列分岐", sym:"p"},
+    gatewayO:     {kind:"gateway", shape:"diamond", w:60,  h:60,  fill:"#FFFBEB", stroke:"#D97706", label:"包含分岐", sym:"o"},
+    data:         {kind:"data",    shape:"data",    w:64,  h:80,  fill:"#FFFFFF", stroke:"#1F497D", label:"データ"},
+    annotation:   {kind:"note",    shape:"note",    w:150, h:56,  fill:"#FFFFFF", stroke:"#94A3B8", label:"注釈テキスト"},
+    issue:        {kind:"issue",   shape:"issue",   w:150, h:46,  fill:"#FEF2F2", stroke:"#E11D48", label:"課題"},
+  };
+  const ISSUE_KINDS=[
+    {k:"重複入力", c:"#E11D48"},{k:"紙・手書き", c:"#EA580C"},{k:"待ち・停滞", c:"#D97706"},
+    {k:"手戻り・差戻し", c:"#DB2777"},{k:"属人化", c:"#7C3AED"},{k:"確認・照合", c:"#0891B2"},
+    {k:"システム間の分断", c:"#E11D48"},{k:"改善ポイント", c:"#059669"},
+  ];
+  const PALETTE = [
+    {group:"イベント", items:[
+      {type:"start", icon:"circle", name:"開始イベント"},
+      {type:"intermediate", icon:"circle", name:"中間イベント"},
+      {type:"end", icon:"circle", name:"終了イベント"},
+    ]},
+    {group:"アクティビティ", items:[
+      {type:"task", icon:"square", name:"タスク"},
+      {type:"subprocess", icon:"square", name:"サブプロセス"},
+    ]},
+    {group:"ゲートウェイ", items:[
+      {type:"gatewayX", icon:"diamond", name:"排他 (XOR)"},
+      {type:"gatewayP", icon:"diamond", name:"並列 (AND)"},
+      {type:"gatewayO", icon:"diamond", name:"包含 (OR)"},
+    ]},
+    {group:"その他", items:[
+      {type:"data", icon:"db", name:"データ"},
+      {type:"annotation", icon:"note", name:"注釈"},
+      {type:"issue", icon:"flag", name:"課題マーカー"},
+    ]},
+  ];
+  const ICON = {
+    circle:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/></svg>',
+    square:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/></svg>',
+    diamond:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 2 22 12 12 22 2 12Z"/></svg>',
+    db:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg>',
+    note:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15.5 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8.5z"/><path d="M15 3v6h6"/></svg>',
+    flag:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>',
+  };
+
+  const GRID = 20;
+  const CH_PATHS={
+    phone:'<path d="M15.5 2h-7A1.5 1.5 0 0 0 7 3.5v17A1.5 1.5 0 0 0 8.5 22h7a1.5 1.5 0 0 0 1.5-1.5v-17A1.5 1.5 0 0 0 15.5 2z"/><path d="M11 18h2"/>',
+    mail:'<path d="M4 5h16a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z"/><path d="M3 7l9 6 9-6"/>',
+    user:'<path d="M20 21a8 8 0 0 0-16 0"/><circle cx="12" cy="7" r="4"/>',
+    paper:'<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/>',
+    fax:'<path d="M7 8V3h10v5"/><path d="M5 8h14a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-2"/><rect x="7" y="14" width="10" height="7"/>',
+    server:'<rect x="3" y="4" width="18" height="7" rx="1"/><rect x="3" y="13" width="18" height="7" rx="1"/><path d="M7 7.5h.01M7 16.5h.01"/>',
+    grid:'<rect x="3" y="3" width="18" height="18" rx="1"/><path d="M3 9h18M3 15h18M9 3v18M15 3v18"/>',
+    chat:'<path d="M21 15a2 2 0 0 1-2 2H8l-5 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
+    globe:'<circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3a15 15 0 0 1 0 18 15 15 0 0 1 0-18z"/>',
+  };
+  const CHANNELS=[
+    {k:"電話",ic:"phone",c:"#0891B2"},{k:"メール",ic:"mail",c:"#04528F"},{k:"対面",ic:"user",c:"#7C3AED"},
+    {k:"紙・手書き",ic:"paper",c:"#B45309"},{k:"FAX",ic:"fax",c:"#9333EA"},{k:"システム",ic:"server",c:"#059669"},
+    {k:"Excel",ic:"grid",c:"#16A34A"},{k:"チャット",ic:"chat",c:"#DB2777"},{k:"Web",ic:"globe",c:"#2563EB"},
+  ];
+  function CH_ICON(ic){ return `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${CH_PATHS[ic]||""}</svg>`; }
+  function chBadge(x,y,ch){ const c=CHANNELS.find(o=>o.k===ch); if(!c) return "";
+    return `<g transform="translate(${x},${y})"><rect width="18" height="18" rx="5" fill="${c.c}"/><g transform="translate(2,2) scale(0.583)" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">${CH_PATHS[c.ic]||""}</g></g>`; }
+  const ACC2 = "#4F81BD";
+  const ACC = "#4F81BD";
+  const PRIMAL = "#04528F";
+  const NAVY = "#1F497D";
+  const SVGFONT = 'メイリオ, Meiryo, system-ui, sans-serif';
+  const uid = () => Math.random().toString(36).slice(2,9);
+  const esc = (s) => String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+
+  let S = {
+    nodes:[], edges:[], pools:[],
+    meta:{title:"", dept:""},
+    phase:"asis",
+    sel:null, editing:null,
+    pan:{x:60,y:60}, zoom:1,
+    showGrid:true, snapOn:true,
+    hover:null, connecting:null, guides:[],
+  };
+  let clip=null;
+  let drag=null, resize=null, panning=null, ghost=null;
+  const hist={past:[], future:[]};
+
+  const $ = (id)=>document.getElementById(id);
+  const svg=$("svg"), world=$("world"), canvas=$("canvas");
+
+  function snap(v){ return S.snapOn ? Math.round(v/GRID)*GRID : v; }
+  function snapshot(){ return JSON.parse(JSON.stringify({nodes:S.nodes,edges:S.edges,pools:S.pools})); }
+  function pushHistory(){ hist.past.push(snapshot()); if(hist.past.length>80) hist.past.shift(); hist.future=[]; updateToolbar(); }
+  function undo(){ if(!hist.past.length) return; hist.future.push(snapshot()); const s=hist.past.pop(); S.nodes=s.nodes;S.edges=s.edges;S.pools=s.pools; S.sel=null; render(); renderProps(); updateToolbar(); }
+  function redo(){ if(!hist.future.length) return; hist.past.push(snapshot()); const s=hist.future.pop(); S.nodes=s.nodes;S.edges=s.edges;S.pools=s.pools; S.sel=null; render(); renderProps(); updateToolbar(); }
+
+  function toCanvas(cx,cy){ const r=svg.getBoundingClientRect(); return {x:(cx-r.left-S.pan.x)/S.zoom, y:(cy-r.top-S.pan.y)/S.zoom}; }
+  function nodeAt(x,y){ for(let i=S.nodes.length-1;i>=0;i--){ const n=S.nodes[i]; if(!vis(n)) continue; if(x>=n.x&&x<=n.x+n.w&&y>=n.y&&y<=n.y+n.h) return n; } return null; }
+  function getNode(id){ return S.nodes.find(n=>n.id===id); }
+  function getPool(id){ return S.pools.find(p=>p.id===id); }
+  function poolH(p){ return p.lanes.reduce((a,l)=>a+l.h,0); }
+  function laneY(p,i){ let y=p.y; for(let k=0;k<i;k++) y+=p.lanes[k].h; return y; }
+
+  function boundaryPoint(node, tx, ty){
+    const cx=node.x+node.w/2, cy=node.y+node.h/2;
+    const dx=tx-cx, dy=ty-cy;
+    if(dx===0&&dy===0) return {x:cx,y:cy};
+    const hw=node.w/2, hh=node.h/2;
+    const sc=1/Math.max(Math.abs(dx)/hw, Math.abs(dy)/hh);
+    return {x:cx+dx*sc, y:cy+dy*sc};
+  }
+  function roundPath(pts,r){
+    if(pts.length<3) return `M ${pts[0].x} ${pts[0].y} L ${pts[pts.length-1].x} ${pts[pts.length-1].y}`;
+    let d=`M ${pts[0].x} ${pts[0].y}`;
+    for(let i=1;i<pts.length-1;i++){
+      const p0=pts[i-1],p1=pts[i],p2=pts[i+1];
+      const v1={x:p1.x-p0.x,y:p1.y-p0.y}, v2={x:p2.x-p1.x,y:p2.y-p1.y};
+      const l1=Math.hypot(v1.x,v1.y)||1, l2=Math.hypot(v2.x,v2.y)||1;
+      const rr=Math.min(r,l1/2,l2/2);
+      const a={x:p1.x-v1.x/l1*rr, y:p1.y-v1.y/l1*rr};
+      const b={x:p1.x+v2.x/l2*rr, y:p1.y+v2.y/l2*rr};
+      d+=` L ${a.x.toFixed(1)} ${a.y.toFixed(1)} Q ${p1.x.toFixed(1)} ${p1.y.toFixed(1)} ${b.x.toFixed(1)} ${b.y.toFixed(1)}`;
+    }
+    d+=` L ${pts[pts.length-1].x} ${pts[pts.length-1].y}`;
+    return d;
+  }
+  function edgePath(s,t,e){
+    if(e&&e.points&&e.points.length){
+      const first=e.points[0], last=e.points[e.points.length-1];
+      const p1=boundaryPoint(s, first.x, first.y);
+      const p2=boundaryPoint(t, last.x, last.y);
+      const pts=[p1, ...e.points, p2];
+      const m=e.points[Math.floor((e.points.length-1)/2)];
+      return {d:roundPath(pts,12), mid:m?{x:m.x,y:m.y}:{x:(p1.x+p2.x)/2,y:(p1.y+p2.y)/2}, pts};
+    }
+    const sc={x:s.x+s.w/2,y:s.y+s.h/2}, tc={x:t.x+t.w/2,y:t.y+t.h/2};
+    const dx=tc.x-sc.x, dy=tc.y-sc.y;
+    const ALIGN=26; // この範囲内なら一直線に矯正
+    let pts,mid;
+    if(Math.abs(dx)>=Math.abs(dy)){
+      if(Math.abs(sc.y-tc.y)<ALIGN){            // ほぼ同じ高さ → 水平の一直線
+        const y=(sc.y+tc.y)/2;
+        const p1=boundaryPoint(s, dx>0?s.x+s.w+1e5:s.x-1e5, y);
+        const p2=boundaryPoint(t, dx>0?t.x-1e5:t.x+t.w+1e5, y);
+        pts=[p1,p2]; mid={x:(p1.x+p2.x)/2,y};
+      } else {
+        const p1=boundaryPoint(s, dx>0?s.x+s.w+1e5:s.x-1e5, sc.y);
+        const p2=boundaryPoint(t, dx>0?t.x-1e5:t.x+t.w+1e5, tc.y);
+        const mx=(p1.x+p2.x)/2;
+        pts=[p1,{x:mx,y:p1.y},{x:mx,y:p2.y},p2]; mid={x:mx,y:(p1.y+p2.y)/2};
+      }
+    } else {
+      if(Math.abs(sc.x-tc.x)<ALIGN){            // ほぼ同じ横位置 → 垂直の一直線
+        const x=(sc.x+tc.x)/2;
+        const p1=boundaryPoint(s, x, dy>0?s.y+s.h+1e5:s.y-1e5);
+        const p2=boundaryPoint(t, x, dy>0?t.y+t.h+1e5:t.y-1e5);
+        pts=[p1,p2]; mid={x,y:(p1.y+p2.y)/2};
+      } else {
+        const p1=boundaryPoint(s, sc.x, dy>0?s.y+s.h+1e5:s.y-1e5);
+        const p2=boundaryPoint(t, tc.x, dy>0?t.y+t.h+1e5:t.y-1e5);
+        const my=(p1.y+p2.y)/2;
+        pts=[p1,{x:p1.x,y:my},{x:p2.x,y:my},p2]; mid={x:(p1.x+p2.x)/2,y:my};
+      }
+    }
+    return {d:roundPath(pts,14),mid,pts};
+  }
+  // 業務量・担当のヘルパ
+  function workMinutes(n){ return Number(n.minutes)||0; }
+  function workFreq(n){ return Number(n.freq)||0; }
+  function asisH(n){ if(n.phase==="tobe") return 0; return workMinutes(n)*workFreq(n)/60; }
+  function tobeH(n){
+    if(n.phase==="asis") return 0;
+    if(n.ecrs==="E") return 0;
+    const m=(n.tmin!==undefined&&n.tmin!=="")?Number(n.tmin):workMinutes(n);
+    const f=(n.tfreq!==undefined&&n.tfreq!=="")?Number(n.tfreq):workFreq(n);
+    return (Number(m)||0)*(Number(f)||0)/60;
+  }
+  function vis(o){ return !o||!o.phase||o.phase==="both"||o.phase===S.phase; }
+  function laneOf(n){
+    const cx=n.x+n.w/2, cy=n.y+n.h/2;
+    for(const p of S.pools){
+      if(cx<p.x||cx>p.x+p.w) continue;
+      for(let i=0;i<p.lanes.length;i++){
+        const ly=laneY(p,i); if(cy>=ly&&cy<=ly+p.lanes[i].h) return p.lanes[i].label||"";
+      }
+    }
+    return "";
+  }
+  function wrapLabel(text, maxChars, maxLines){
+    if(!text) return [];
+    const lines=[]; let cur="";
+    for(const ch of String(text)){
+      if(ch==="\n"){ lines.push(cur); cur=""; continue; }
+      cur+=ch;
+      if(cur.length>=maxChars){ lines.push(cur); cur=""; }
+      if(lines.length>=maxLines) break;
+    }
+    if(cur && lines.length<maxLines) lines.push(cur);
+    if(lines.length===maxLines && (cur || String(text).length>maxChars*maxLines)){
+      lines[maxLines-1]=lines[maxLines-1].slice(0,maxChars-1)+"…";
+    }
+    return lines;
+  }
+
+  function poolSVG(p, forExport){
+    const selected=!forExport && S.sel&&S.sel.kind==="pool"&&S.sel.id===p.id;
+    const totalH=poolH(p);
+    const stroke=selected?ACC:NAVY;
+    const HDR=p.headerW;
+    let out=`<rect x="${p.x}" y="${p.y}" width="${p.w}" height="${totalH}" fill="#ffffff" stroke="${stroke}" stroke-width="${selected?2:1.5}"/>`;
+    p.lanes.forEach((lane,i)=>{
+      const ly=laneY(p,i);
+      if(i>0) out+=`<line x1="${p.x}" y1="${ly}" x2="${p.x+p.w}" y2="${ly}" stroke="#CBD5E1" stroke-width="1"/>`;
+      out+=`<rect data-kind="poolhdr" data-id="${p.id}" data-lane="${lane.id}" x="${p.x}" y="${ly}" width="${HDR}" height="${lane.h}" fill="#EEECE1" stroke="${stroke}" stroke-width="${selected?1.5:1.2}" style="cursor:move"/>`;
+      const isEdit=S.editing&&S.editing.kind==="lane"&&S.editing.id===lane.id;
+      if(!isEdit){
+        const lines=wrapLabel(lane.label, Math.floor(HDR/14), 3);
+        const lh=16, cy=ly+lane.h/2-((lines.length-1)*lh)/2, cx=p.x+HDR/2;
+        lines.forEach((ln,k)=>{ out+=`<text x="${cx}" y="${cy+k*lh}" text-anchor="middle" dominant-baseline="middle" font-size="13" font-weight="600" fill="${NAVY}" font-family="${SVGFONT}" style="pointer-events:none">${esc(ln)}</text>`; });
+        if(!lane.label && !forExport){ out+=`<text x="${cx}" y="${ly+lane.h/2}" text-anchor="middle" dominant-baseline="middle" font-size="12" fill="#b9b3a0" font-family="${SVGFONT}" style="pointer-events:none">担当・部署</text>`; }
+      }
+      if(selected && !forExport){
+        const gx=p.x+HDR+(p.w-HDR)/2;
+        out+=`<rect data-kind="laneh" data-id="${p.id}" data-lane="${lane.id}" x="${p.x}" y="${ly+lane.h-6}" width="${p.w}" height="12" fill="transparent" style="cursor:ns-resize"/>`+
+             `<rect x="${gx-18}" y="${ly+lane.h-2.5}" width="36" height="5" rx="2.5" fill="${ACC}" style="pointer-events:none"/>`;
+      }
+    });
+    if(selected && !forExport){
+      out+=`<rect data-kind="poolw" data-id="${p.id}" x="${p.x+p.w-8}" y="${p.y+totalH/2-9}" width="6" height="18" rx="3" fill="${ACC}" style="cursor:ew-resize"/>`+
+           `<rect data-kind="poolwh" data-id="${p.id}" x="${p.x+p.w-9}" y="${p.y+totalH-9}" width="18" height="18" rx="4" fill="${PRIMAL}" stroke="#fff" stroke-width="2" style="cursor:nwse-resize"/>`;
+    }
+    return `<g>${out}</g>`;
+  }
+
+  function nodeSVG(n, forExport){
+    const def=NODE_DEFS[n.type]; if(!def) return "";
+    const cx=n.x+n.w/2, cy=n.y+n.h/2;
+    const selected=!forExport && S.sel&&S.sel.kind==="node"&&S.sel.id===n.id;
+    const showHandle=!forExport && !S.connecting && (S.hover===n.id||selected) && def.shape!=="note" && def.shape!=="issue";
+    let shape="";
+    if(def.shape==="circle"){
+      const r=n.w/2;
+      shape=`<circle cx="${cx}" cy="${cy}" r="${r}" fill="${n.fill}" stroke="${n.stroke}" stroke-width="${def.thick?4:2}"/>`;
+      if(def.dbl) shape+=`<circle cx="${cx}" cy="${cy}" r="${r-4}" fill="none" stroke="${n.stroke}" stroke-width="2"/>`;
+    } else if(def.shape==="rect"){
+      shape=`<rect x="${n.x}" y="${n.y}" width="${n.w}" height="${n.h}" rx="10" fill="${n.fill}" stroke="${n.stroke}" stroke-width="2"/>`;
+      if(def.sub){
+        const by=n.y+n.h-18;
+        shape+=`<rect x="${cx-8}" y="${by}" width="16" height="14" rx="2" fill="none" stroke="${n.stroke}" stroke-width="1.5"/>`+
+               `<line x1="${cx}" y1="${by+2}" x2="${cx}" y2="${by+12}" stroke="${n.stroke}" stroke-width="1.5"/>`+
+               `<line x1="${cx-5}" y1="${by+7}" x2="${cx+5}" y2="${by+7}" stroke="${n.stroke}" stroke-width="1.5"/>`;
+      }
+    } else if(def.shape==="diamond"){
+      const pts=`${cx},${n.y} ${n.x+n.w},${cy} ${cx},${n.y+n.h} ${n.x},${cy}`;
+      shape=`<polygon points="${pts}" fill="${n.fill}" stroke="${n.stroke}" stroke-width="2"/>`;
+      const s=11;
+      if(def.sym==="x") shape+=`<line x1="${cx-s}" y1="${cy-s}" x2="${cx+s}" y2="${cy+s}" stroke="${n.stroke}" stroke-width="2.5"/><line x1="${cx+s}" y1="${cy-s}" x2="${cx-s}" y2="${cy+s}" stroke="${n.stroke}" stroke-width="2.5"/>`;
+      if(def.sym==="p") shape+=`<line x1="${cx-s}" y1="${cy}" x2="${cx+s}" y2="${cy}" stroke="${n.stroke}" stroke-width="2.5"/><line x1="${cx}" y1="${cy-s}" x2="${cx}" y2="${cy+s}" stroke="${n.stroke}" stroke-width="2.5"/>`;
+      if(def.sym==="o") shape+=`<circle cx="${cx}" cy="${cy}" r="${s}" fill="none" stroke="${n.stroke}" stroke-width="2.5"/>`;
+    } else if(def.shape==="data"){
+      const f=16;
+      shape=`<path d="M ${n.x} ${n.y} L ${n.x+n.w-f} ${n.y} L ${n.x+n.w} ${n.y+f} L ${n.x+n.w} ${n.y+n.h} L ${n.x} ${n.y+n.h} Z" fill="${n.fill}" stroke="${n.stroke}" stroke-width="2"/>`+
+            `<path d="M ${n.x+n.w-f} ${n.y} L ${n.x+n.w-f} ${n.y+f} L ${n.x+n.w} ${n.y+f}" fill="none" stroke="${n.stroke}" stroke-width="1.5"/>`;
+    } else if(def.shape==="note"){
+      shape=`<rect x="${n.x}" y="${n.y}" width="${n.w}" height="${n.h}" fill="${n.fill}"/>`+
+            `<path d="M ${n.x+8} ${n.y} L ${n.x} ${n.y} L ${n.x} ${n.y+n.h} L ${n.x+8} ${n.y+n.h}" fill="none" stroke="${n.stroke}" stroke-width="1.5"/>`;
+    } else if(def.shape==="issue"){
+      const r=8, ix=n.x+18, iy=cy;
+      shape=`<rect x="${n.x}" y="${n.y}" width="${n.w}" height="${n.h}" rx="8" fill="${n.fill}" stroke="${n.stroke}" stroke-width="1.8"/>`+
+            `<circle cx="${ix}" cy="${iy}" r="${r}" fill="${n.stroke}"/>`+
+            `<line x1="${ix}" y1="${iy-3.5}" x2="${ix}" y2="${iy+1.5}" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/>`+
+            `<circle cx="${ix}" cy="${iy+4.5}" r="1.1" fill="#fff"/>`;
+    }
+    const inside = def.kind==="task" || def.shape==="note" || def.shape==="issue";
+    let chb="";
+    if(def.kind==="task" && n.channels && n.channels.length){
+      n.channels.slice(0,5).forEach((ch,k)=>{ chb+=chBadge(n.x+n.w-21-k*20, n.y+5, ch); });
+    }
+    const isEdit = S.editing && S.editing.kind==="node" && S.editing.id===n.id;
+    let labelSVG="";
+    if(!isEdit){
+      const isIssue=def.shape==="issue";
+      const lines=wrapLabel(n.label, isIssue?Math.floor((n.w-34)/13):(inside?Math.floor(n.w/14):8), inside?3:2);
+      const lh=15;
+      const startY=inside?cy-((lines.length-1)*lh)/2 : n.y+n.h+14;
+      const lx=def.shape==="note"?n.x+10:(isIssue?n.x+32:cx);
+      const anc=(def.shape==="note"||isIssue)?"start":"middle";
+      const col=isIssue?n.stroke:"#1E293B";
+      labelSVG=lines.map((ln,i)=>`<text x="${lx}" y="${startY+i*lh}" text-anchor="${anc}" dominant-baseline="middle" font-size="12.5" font-weight="${isIssue?600:400}" fill="${col}" font-family="${SVGFONT}" style="pointer-events:none">${esc(ln)}</text>`).join("");
+    }
+    let selBox="";
+    if(selected && def.shape!=="note") selBox=`<rect x="${n.x-6}" y="${n.y-6}" width="${n.w+12}" height="${n.h+12}" rx="8" fill="none" stroke="${ACC}" stroke-width="1.5" stroke-dasharray="5 4"/>`;
+    let handle="";
+    if(showHandle) handle=`<circle data-kind="handle" data-id="${n.id}" cx="${n.x+n.w}" cy="${cy}" r="6" fill="${ACC}" stroke="#fff" stroke-width="2" style="cursor:crosshair"/>`;
+    let rz="";
+    if(selected) rz=`<rect data-kind="noderz" data-id="${n.id}" x="${n.x+n.w-8}" y="${n.y+n.h-8}" width="16" height="16" rx="4" fill="${PRIMAL}" stroke="#fff" stroke-width="2.5" style="cursor:nwse-resize"/>`;
+    return `<g data-kind="node" data-id="${n.id}" style="cursor:move">${selBox}${shape}${labelSVG}${chb}${handle}${rz}</g>`;
+  }
+
+  function edgeSVG(e, forExport){
+    const s=getNode(e.source), t=getNode(e.target);
+    if(!s||!t) return "";
+    const {d,mid,pts}=edgePath(s,t,e);
+    const selected=!forExport && S.sel&&S.sel.kind==="edge"&&S.sel.id===e.id;
+    const dash = e.style==="message"?'stroke-dasharray="7 5"' : e.style==="association"?'stroke-dasharray="2 4"' : "";
+    const marker = e.style==="message"?'marker-end="url(#arrow-open)"' : e.style==="association"?"" : `marker-end="url(#${selected?'arrow-sel':'arrow'})"`;
+    const isEdit = S.editing && S.editing.kind==="edge" && S.editing.id===e.id;
+    let hit = forExport?"":`<path data-kind="edge" data-id="${e.id}" d="${d}" fill="none" stroke="transparent" stroke-width="14" style="cursor:pointer"/>`;
+    let line=`<path d="${d}" fill="none" stroke="${selected?ACC:'#334155'}" stroke-width="${selected?2.5:1.8}" ${dash} ${marker} style="pointer-events:none"/>`;
+    let lab="";
+    if(e.label && !isEdit){
+      const w=e.label.length*7.2+8;
+      lab=`<g style="pointer-events:none"><rect x="${mid.x-w/2}" y="${mid.y-9}" width="${w}" height="18" rx="3" fill="#fff" opacity="0.92"/><text x="${mid.x}" y="${mid.y}" text-anchor="middle" dominant-baseline="middle" font-size="11.5" fill="#334155" font-family="${SVGFONT}">${esc(e.label)}</text></g>`;
+    }
+    let handles="";
+    if(selected && !forExport){
+      (e.points||[]).forEach((p,i)=>{ handles+=`<circle data-kind="ept" data-id="${e.id}" data-i="${i}" cx="${p.x}" cy="${p.y}" r="6.5" fill="#fff" stroke="${ACC}" stroke-width="2.5" style="cursor:move"/>`; });
+      const P=pts||[mid];
+      for(let i=0;i<P.length-1;i++){ const mx=(P[i].x+P[i+1].x)/2, my=(P[i].y+P[i+1].y)/2;
+        handles+=`<circle data-kind="eptadd" data-id="${e.id}" data-i="${i}" cx="${mx}" cy="${my}" r="4.5" fill="${ACC}" opacity="0.45" style="cursor:copy"/>`; }
+    }
+    return `<g>${hit}${line}${lab}${handles}</g>`;
+  }
+
+  function connectingSVG(){
+    if(!S.connecting) return "";
+    const s=getNode(S.connecting.source); if(!s) return "";
+    const bp=boundaryPoint(s, S.connecting.x, S.connecting.y);
+    return `<line x1="${bp.x}" y1="${bp.y}" x2="${S.connecting.x}" y2="${S.connecting.y}" stroke="${ACC}" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#arrow-sel)"/>`;
+  }
+
+  let pending=false;
+  function scheduleRender(){ if(!pending){ pending=true; requestAnimationFrame(()=>{pending=false; render();}); } }
+  function render(){
+    $("gridrect").style.display=S.showGrid?"":"none";
+    document.querySelector("#grid").setAttribute("patternTransform", `translate(${S.pan.x%(GRID*S.zoom)} ${S.pan.y%(GRID*S.zoom)}) scale(${S.zoom})`);
+    world.setAttribute("transform", `translate(${S.pan.x} ${S.pan.y}) scale(${S.zoom})`);
+    let html="";
+    S.pools.filter(vis).forEach(p=>html+=poolSVG(p,false));
+    S.edges.filter(e=>vis(e)&&vis(getNode(e.source))&&vis(getNode(e.target))).forEach(e=>html+=edgeSVG(e,false));
+    S.nodes.filter(vis).forEach(n=>html+=nodeSVG(n,false));
+    html+=connectingSVG();
+    S.guides.forEach(g=>{
+      if(g.type==="v") html+=`<line x1="${g.x}" y1="${g.y1}" x2="${g.x}" y2="${g.y2}" stroke="${ACC}" stroke-width="1" stroke-dasharray="4 3" opacity="0.9"/>`;
+      else html+=`<line x1="${g.x1}" y1="${g.y}" x2="${g.x2}" y2="${g.y}" stroke="${ACC}" stroke-width="1" stroke-dasharray="4 3" opacity="0.9"/>`;
+    });
+    world.innerHTML=html;
+    $("empty").style.display=(S.nodes.length||S.pools.length)?"none":"";
+    renderEditOverlay();
+  }
+  function updateToolbar(){
+    $("undo").disabled=!hist.past.length;
+    $("redo").disabled=!hist.future.length;
+    $("del").disabled=!S.sel;
+    $("grid").classList.toggle("active", S.showGrid);
+    $("zoomval").textContent=Math.round(S.zoom*100)+"%";
+  }
+
+  function renderPalette(){
+    let html="";
+    PALETTE.forEach(g=>{
+      html+=`<div class="pgroup"><div class="pglabel">${esc(g.group)}</div>`;
+      g.items.forEach(it=>{ const col=NODE_DEFS[it.type].stroke; html+=`<button class="pitem" data-type="${it.type}"><span class="dot" style="color:${col}">${ICON[it.icon]}</span>${esc(it.name)}</button>`; });
+      html+="</div>";
+    });
+    $("palette").innerHTML=html;
+    $("palette").querySelectorAll(".pitem").forEach(btn=>{
+      btn.addEventListener("pointerdown",(e)=>{ e.preventDefault(); ghost={type:btn.dataset.type,x:e.clientX,y:e.clientY}; showGhost(); });
+    });
+  }
+
+  function phaseField(o){
+    const v=o.phase||"both";
+    return `<label class="field"><span>表示（As-Is / Can-Be / To-Be）</span><select id="p-phase">
+      <option value="both" ${v==="both"?"selected":""}>共通（すべてに表示）</option>
+      <option value="asis" ${v==="asis"?"selected":""}>As-Is のみ</option>
+      <option value="canbe" ${v==="canbe"?"selected":""}>Can-Be のみ</option>
+      <option value="tobe" ${v==="tobe"?"selected":""}>To-Be のみ</option>
+    </select></label>`;
+  }
+  function renderProps(){
+    const p=$("props"); let html="";
+    const tips=`<div class="tips"><div class="cap">操作のヒント</div><ul>
+      <li>・ダブルクリックで名前を編集</li>
+      <li>・青丸を引っぱって矢印で接続</li>
+      <li>・担当行の左帯をドラッグで全体移動</li>
+      <li>・背景ドラッグで画面を移動</li>
+      <li>・Delete で選択を削除</li></ul>
+      <button class="clearbtn" id="clearall">すべて消去</button></div>`;
+
+    if(!S.sel){
+      p.innerHTML=`<div class="psec"><div class="cap">ダイアグラム情報</div>
+        <label class="field"><span>プロセス名（シート上部に表示）</span><input type="text" id="m-title" value="${esc(S.meta.title)}" placeholder="例：住民異動受付業務"></label>
+        <label class="field"><span>対象部署・課</span><input type="text" id="m-dept" value="${esc(S.meta.dept)}" placeholder="例：芳賀町 住民課"></label>
+        <p class="empty-prop">要素を選択すると個別に編集できます。</p></div>`+tips;
+      bindProps(); return;
+    }
+
+    if(S.sel.kind==="node"){
+      const n=getNode(S.sel.id);
+      const opts=Object.keys(NODE_DEFS).map(k=>`<option value="${k}" ${k===n.type?"selected":""}>${NODE_DEFS[k].label}</option>`).join("");
+      const isWork=NODE_DEFS[n.type].kind==="task";
+      const isIssue=NODE_DEFS[n.type].kind==="issue";
+      let work="";
+      if(isWork){
+        const ec=n.ecrs||"";
+        const ecOpt=[["","維持（変更なし）"],["E","E：排除（廃止）"],["C","C：結合"],["R","R：再配置・順序変更"],["S","S：簡素化"]]
+          .map(o=>`<option value="${o[0]}" ${o[0]===ec?"selected":""}>${o[1]}</option>`).join("");
+        work=`<div class="cap" style="margin-top:4px">業務量（年間）</div>
+        <div class="row2"><label class="field"><span>1回あたり(分)</span><input type="number" id="p-min" value="${n.minutes!=null?n.minutes:""}" placeholder="0"></label>
+        <label class="field"><span>年間回数</span><input type="number" id="p-freq" value="${n.freq!=null?n.freq:""}" placeholder="0"></label></div>
+        <div class="field"><span>As-Is 年間業務量</span><div id="p-asis" style="font-size:18px;font-weight:600;color:var(--primal)">${asisH(n).toFixed(1)} 時間/年</div></div>
+        <div class="cap" style="margin-top:4px">To-Be 設計（ECRS）</div>
+        <label class="field"><span>ECRS区分</span><select id="p-ecrs">${ecOpt}</select></label>
+        <div class="row2"><label class="field"><span>To-Be 1回(分)</span><input type="number" id="p-tmin" value="${n.tmin!=null?n.tmin:""}" placeholder="現状と同じ"></label>
+        <label class="field"><span>To-Be 回数</span><input type="number" id="p-tfreq" value="${n.tfreq!=null?n.tfreq:""}" placeholder="現状と同じ"></label></div>
+        <div class="field"><span>To-Be 年間業務量 ／ 削減</span><div id="p-tobe" style="font-size:14px;color:var(--navy)"></div></div>
+        <div class="cap" style="margin-top:4px">手段・チャネル（複数可）</div>
+        <div class="chchips">${CHANNELS.map(o=>`<button class="chchip ${(n.channels||[]).includes(o.k)?'on':''}" data-k="${esc(o.k)}" style="--cc:${o.c}"><span class="ci" style="color:${(n.channels||[]).includes(o.k)?'#fff':o.c}">${CH_ICON(o.ic)}</span>${esc(o.k)}</button>`).join("")}</div>
+        <label class="field" style="margin-top:10px"><span>使用システム名</span><input type="text" id="p-system" value="${esc(n.system||"")}" placeholder="例：基幹システム / kintone / Excel"></label>`;
+      }
+      let issue="";
+      if(isIssue){
+        const chips=ISSUE_KINDS.map(o=>`<button class="ichip" data-k="${esc(o.k)}" data-c="${o.c}" style="border-color:${o.c};color:${o.c}">${esc(o.k)}</button>`).join("");
+        issue=`<div class="cap" style="margin-top:4px">課題の種類（クリックで設定）</div><div class="ichips">${chips}</div>`;
+      }
+      html=`<div class="psec"><div class="cap">${isIssue?"課題マーカー":"パーツ"}</div>
+        <label class="field"><span>${isIssue?"課題の内容":"名前"}</span><textarea id="p-label" rows="2">${esc(n.label)}</textarea></label>
+        ${isIssue?issue:`<label class="field"><span>種類の変更</span><select id="p-type">${opts}</select></label>`}
+        ${work}
+        <div class="field"><span>色</span><div class="colorrow">
+          <label class="colorpick"><input type="color" id="p-fill" value="${hx(n.fill)}">塗り</label>
+          <label class="colorpick"><input type="color" id="p-stroke" value="${hx(n.stroke)}">線</label>
+        </div></div>
+        <div class="field"><span>大きさ</span><div class="sizebtns">
+          <button id="p-smaller" type="button">− 小さく</button>
+          <button id="p-bigger" type="button">＋ 大きく</button>
+        </div></div>
+        <div class="row2"><label class="field"><span>幅</span><input type="number" id="p-w" value="${n.w}"></label>
+        <label class="field"><span>高さ</span><input type="number" id="p-h" value="${n.h}"></label></div>
+        ${phaseField(n)}
+        <button class="delbtn" id="p-del">この要素を削除</button></div>`+tips;
+    } else if(S.sel.kind==="edge"){
+      const e=S.edges.find(x=>x.id===S.sel.id); const st=e.style||"sequence";
+      html=`<div class="psec"><div class="cap">フロー</div>
+        <label class="field"><span>ラベル（条件など）</span><input type="text" id="p-elabel" value="${esc(e.label)}" placeholder="例：承認OK / NG"></label>
+        <label class="field"><span>線の種類</span><select id="p-estyle">
+          <option value="sequence" ${st==="sequence"?"selected":""}>シーケンスフロー（実線）</option>
+          <option value="message" ${st==="message"?"selected":""}>メッセージフロー（破線）</option>
+          <option value="association" ${st==="association"?"selected":""}>関連（点線・矢印なし）</option>
+        </select></label>
+        ${phaseField(e)}
+        <button class="delbtn" id="p-del">この線を削除</button></div>`+tips;
+    } else if(S.sel.kind==="pool"){
+      const pool=getPool(S.sel.id);
+      let rows="";
+      pool.lanes.forEach((l,i)=>{ rows+=`<div class="lanerow"><span class="lhandle">${i+1}</span><input type="text" data-lane="${l.id}" value="${esc(l.label)}" placeholder="担当・部署名"><button class="lrm" data-lane="${l.id}" title="この行を削除"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div>`; });
+      html=`<div class="psec"><div class="cap">スイムレーン（担当行）</div>
+        <label class="field"><span>担当（上から順に）</span><div id="lanelist">${rows}</div>
+        <button class="addlane" id="p-addlane">＋ 担当行を追加</button></label>
+        <div class="row2"><label class="field"><span>全体の幅</span><input type="number" id="p-pw" value="${pool.w}"></label>
+        <label class="field"><span>各行の高さ</span><input type="number" id="p-lh" value="${pool.lanes[0]?pool.lanes[0].h:120}"></label></div>
+        ${phaseField(pool)}
+        <button class="delbtn" id="p-del">このスイムレーンを削除</button></div>`+tips;
+    }
+    p.innerHTML=html; bindProps();
+  }
+  function hx(c){ return (c&&c[0]==="#"&&c.length===7)?c:"#000000"; }
+
+  function bindProps(){
+    const clear=$("clearall");
+    if(clear) clear.onclick=()=>{ if(!S.nodes.length&&!S.pools.length)return; pushHistory(); S.nodes=[];S.edges=[];S.pools=[];S.sel=null; render(); renderProps(); };
+    const del=$("p-del"); if(del) del.onclick=deleteSel;
+    const mt=$("m-title"); if(mt) mt.oninput=e=>{ S.meta.title=e.target.value; };
+    const md=$("m-dept"); if(md) md.oninput=e=>{ S.meta.dept=e.target.value; };
+    if(!S.sel) return;
+    if(S.sel.kind==="node"){
+      const n=getNode(S.sel.id); if(!n)return;
+      $("p-label").oninput=e=>{ n.label=e.target.value; scheduleRender(); };
+      const pt=$("p-type"); if(pt) pt.onchange=e=>{ pushHistory(); const d=NODE_DEFS[e.target.value]; n.type=e.target.value;n.w=d.w;n.h=d.h;n.fill=d.fill;n.stroke=d.stroke; render(); renderProps(); };
+      $("p-fill").oninput=e=>{ n.fill=e.target.value; scheduleRender(); };
+      $("p-stroke").oninput=e=>{ n.stroke=e.target.value; scheduleRender(); };
+      $("p-w").oninput=e=>{ n.w=parseInt(e.target.value)||0; scheduleRender(); };
+      $("p-h").oninput=e=>{ n.h=parseInt(e.target.value)||0; scheduleRender(); };
+      const bg=$("p-bigger"); if(bg) bg.onclick=()=>scaleSel(1.15);
+      const sm=$("p-smaller"); if(sm) sm.onclick=()=>scaleSel(0.87);
+      const ph=$("p-phase"); if(ph) ph.onchange=e=>{ pushHistory(); n.phase=e.target.value; render(); };
+      document.querySelectorAll(".ichip").forEach(b=>{ b.onclick=()=>{ pushHistory(); n.stroke=b.dataset.c; n.fill=b.dataset.c+"14"; if(!n.label||n.label==="課題"||ISSUE_KINDS.some(o=>o.k===n.label)) n.label=b.dataset.k; render(); renderProps(); }; });
+      const upd=()=>{
+        const a=$("p-asis"); if(a) a.textContent=asisH(n).toFixed(1)+" 時間/年";
+        const tb=$("p-tobe"); if(tb){ const t=tobeH(n),red=asisH(n)-t; const rate=asisH(n)>0?(red/asisH(n)*100):0;
+          tb.innerHTML=`${t.toFixed(1)} 時間/年　<span style="color:${red>0?'#059669':'var(--muted)'}">削減 ${red.toFixed(1)}h（${rate.toFixed(0)}%）</span>`; }
+      };
+      if($("p-min")){
+        $("p-min").oninput=e=>{ n.minutes=e.target.value===""?undefined:Number(e.target.value); upd(); };
+        $("p-freq").oninput=e=>{ n.freq=e.target.value===""?undefined:Number(e.target.value); upd(); };
+        $("p-ecrs").onchange=e=>{ n.ecrs=e.target.value; upd(); };
+        $("p-tmin").oninput=e=>{ n.tmin=e.target.value; upd(); };
+        $("p-tfreq").oninput=e=>{ n.tfreq=e.target.value; upd(); };
+        upd();
+      }
+      document.querySelectorAll(".chchip").forEach(b=>{ b.onclick=()=>{ n.channels=n.channels||[]; const k=b.dataset.k; const i=n.channels.indexOf(k); if(i>=0) n.channels.splice(i,1); else n.channels.push(k); if(!n.channels.length) delete n.channels; render(); renderProps(); }; });
+      const sys=$("p-system"); if(sys) sys.oninput=e=>{ n.system=e.target.value||undefined; };
+    } else if(S.sel.kind==="edge"){
+      const ed=S.edges.find(x=>x.id===S.sel.id); if(!ed)return;
+      $("p-elabel").oninput=e=>{ ed.label=e.target.value; scheduleRender(); };
+      $("p-estyle").onchange=e=>{ ed.style=e.target.value; scheduleRender(); };
+      const ph=$("p-phase"); if(ph) ph.onchange=e=>{ pushHistory(); ed.phase=e.target.value; render(); };
+    } else if(S.sel.kind==="pool"){
+      const pool=getPool(S.sel.id); if(!pool)return;
+      $("lanelist").querySelectorAll('input[type=text]').forEach(inp=>{
+        inp.oninput=e=>{ const l=pool.lanes.find(x=>x.id===inp.dataset.lane); if(l){l.label=e.target.value; scheduleRender();} };
+      });
+      $("lanelist").querySelectorAll('.lrm').forEach(btn=>{
+        btn.onclick=()=>{ if(pool.lanes.length<=1)return; pushHistory(); pool.lanes=pool.lanes.filter(x=>x.id!==btn.dataset.lane); render(); renderProps(); };
+      });
+      $("p-addlane").onclick=()=>{ pushHistory(); const h=pool.lanes[0]?pool.lanes[0].h:120; pool.lanes.push({id:uid(),label:"",h:h}); render(); renderProps(); };
+      $("p-pw").oninput=e=>{ pool.w=Math.max(220,parseInt(e.target.value)||220); scheduleRender(); };
+      $("p-lh").oninput=e=>{ const v=Math.max(48,parseInt(e.target.value)||48); pool.lanes.forEach(l=>l.h=v); scheduleRender(); };
+      const ph=$("p-phase"); if(ph) ph.onchange=e=>{ pushHistory(); pool.phase=e.target.value; render(); };
+    }
+  }
+
+  function addNode(type,x,y){
+    const d=NODE_DEFS[type];
+    const node={id:uid(),type,x:snap(x-d.w/2),y:snap(y-d.h/2),w:d.w,h:d.h,label:d.label,fill:d.fill,stroke:d.stroke,phase:(S.phase==="asis"?"both":S.phase)};
+    pushHistory(); S.nodes.push(node); S.sel={kind:"node",id:node.id}; render(); renderProps(); updateToolbar();
+  }
+  function addPool(){
+    pushHistory();
+    const r=svg.getBoundingClientRect(); const c=toCanvas(r.left+r.width/2-360, r.top+120);
+    const pool={id:uid(), x:snap(c.x), y:snap(c.y), w:760, headerW:130,
+      lanes:[{id:uid(),label:"",h:140},{id:uid(),label:"",h:140}]};
+    S.pools.push(pool); S.sel={kind:"pool",id:pool.id}; render(); renderProps(); updateToolbar();
+  }
+  function deleteSel(){
+    if(!S.sel) return; pushHistory();
+    if(S.sel.kind==="node"){ S.nodes=S.nodes.filter(n=>n.id!==S.sel.id); S.edges=S.edges.filter(e=>e.source!==S.sel.id&&e.target!==S.sel.id); }
+    else if(S.sel.kind==="edge"){ S.edges=S.edges.filter(e=>e.id!==S.sel.id); }
+    else if(S.sel.kind==="pool"){ S.pools=S.pools.filter(p=>p.id!==S.sel.id); }
+    S.sel=null; render(); renderProps(); updateToolbar();
+  }
+
+  function renderEditOverlay(){
+    const old=$("edit-input");
+    if(!S.editing){ if(old) old.remove(); return; }
+    let x,y,w,h,val,ph="";
+    if(S.editing.kind==="node"){
+      const n=getNode(S.editing.id); if(!n){S.editing=null;return;}
+      const cy=n.y+n.h/2;
+      x=(n.x-10)*S.zoom+S.pan.x; y=(cy-16)*S.zoom+S.pan.y; w=(n.w+20)*S.zoom; h=32*S.zoom; val=n.label;
+    } else if(S.editing.kind==="edge"){
+      const e=S.edges.find(z=>z.id===S.editing.id); if(!e){S.editing=null;return;}
+      const s=getNode(e.source),t=getNode(e.target); if(!s||!t){S.editing=null;return;}
+      const {mid}=edgePath(s,t,e);
+      x=(mid.x-60)*S.zoom+S.pan.x; y=(mid.y-16)*S.zoom+S.pan.y; w=120*S.zoom; h=32*S.zoom; val=e.label; ph="条件など";
+    } else if(S.editing.kind==="lane"){
+      let found=null;
+      S.pools.forEach(pool=>pool.lanes.forEach((l,i)=>{ if(l.id===S.editing.id) found={pool,l,i}; }));
+      if(!found){S.editing=null;return;}
+      const ly=laneY(found.pool,found.i);
+      x=(found.pool.x+4)*S.zoom+S.pan.x; y=(ly+found.l.h/2-14)*S.zoom+S.pan.y; w=(found.pool.headerW-8)*S.zoom; h=28*S.zoom; val=found.l.label; ph="担当・部署";
+    }
+    let inp=old; const fresh=!inp;
+    if(fresh){
+      inp=document.createElement("input"); inp.id="edit-input"; inp.className="edit-input"; inp.type="text";
+      canvas.appendChild(inp); inp.value=val||""; inp.placeholder=ph;
+      inp.addEventListener("pointerdown",e=>e.stopPropagation());
+      inp.addEventListener("blur", commitEdit);
+      inp.addEventListener("keydown",e=>{ if(e.key==="Enter"){commitEdit();} else if(e.key==="Escape"){S.editing=null; render();} });
+      setTimeout(()=>{ inp.focus(); inp.select(); },0);
+    }
+    inp.style.left=x+"px"; inp.style.top=y+"px"; inp.style.width=Math.max(60,w)+"px"; inp.style.height=Math.max(24,h)+"px";
+  }
+  function beginEdit(kind,id){ S.editing={kind,id}; render(); }
+  function commitEdit(){
+    const inp=$("edit-input"); if(!S.editing||!inp) return;
+    const v=inp.value;
+    if(S.editing.kind==="node"){ const n=getNode(S.editing.id); if(n)n.label=v; }
+    else if(S.editing.kind==="edge"){ const e=S.edges.find(x=>x.id===S.editing.id); if(e)e.label=v; }
+    else if(S.editing.kind==="lane"){ S.pools.forEach(p=>p.lanes.forEach(l=>{ if(l.id===S.editing.id) l.label=v; })); }
+    S.editing=null; render(); renderProps();
+  }
+
+  function showGhost(){ let g=$("ghost-el"); if(!g){ g=document.createElement("div"); g.id="ghost-el"; g.className="ghost"; document.body.appendChild(g); } g.textContent=NODE_DEFS[ghost.type].label; g.style.left=(ghost.x+8)+"px"; g.style.top=(ghost.y+8)+"px"; }
+  function hideGhost(){ const g=$("ghost-el"); if(g) g.remove(); }
+
+  svg.addEventListener("pointerdown",(e)=>{
+    const el=e.target.closest("[data-kind]");
+    if(!el){ S.sel=null; render(); renderProps(); updateToolbar(); panning={sx:e.clientX,sy:e.clientY,px:S.pan.x,py:S.pan.y}; return; }
+    const kind=el.dataset.kind, id=el.dataset.id;
+    if(kind==="node"){
+      e.stopPropagation(); S.sel={kind:"node",id};
+      const c=toCanvas(e.clientX,e.clientY); const n=getNode(id);
+      pushHistory(); drag={kind:"node",id,ox:c.x-n.x,oy:c.y-n.y};
+      S.edges.forEach(ed=>{ if(ed.source===id||ed.target===id) delete ed.points; }); // 動かす線は自動ルートに戻す
+      render(); renderProps(); updateToolbar();
+    } else if(kind==="poolhdr"){
+      e.stopPropagation(); S.sel={kind:"pool",id};
+      const c=toCanvas(e.clientX,e.clientY); const pool=getPool(id);
+      pushHistory();
+      const totalH=poolH(pool);
+      const kids=S.nodes.filter(n=>{ const ncx=n.x+n.w/2,ncy=n.y+n.h/2; return ncx>=pool.x&&ncx<=pool.x+pool.w&&ncy>=pool.y&&ncy<=pool.y+totalH; })
+                        .map(n=>({id:n.id,dx:n.x-pool.x,dy:n.y-pool.y}));
+      const kidIds=new Set(kids.map(k=>k.id));
+      S.edges.forEach(ed=>{ if(kidIds.has(ed.source)||kidIds.has(ed.target)) delete ed.points; });
+      drag={kind:"pool",id,ox:c.x-pool.x,oy:c.y-pool.y,kids};
+      render(); renderProps(); updateToolbar();
+    } else if(kind==="edge"){
+      e.stopPropagation(); S.sel={kind:"edge",id}; render(); renderProps(); updateToolbar();
+    } else if(kind==="ept"){
+      e.stopPropagation(); S.sel={kind:"edge",id}; pushHistory(); resize={mode:"ept",id,i:+el.dataset.i}; render();
+    } else if(kind==="eptadd"){
+      e.stopPropagation(); const ed=S.edges.find(x=>x.id===id); if(!ed) return;
+      S.sel={kind:"edge",id}; pushHistory(); const c=toCanvas(e.clientX,e.clientY);
+      ed.points=ed.points||[]; const insAt=(+el.dataset.i); ed.points.splice(insAt,0,{x:snap(c.x),y:snap(c.y)});
+      resize={mode:"ept",id,i:insAt}; render();
+    } else if(kind==="handle"){
+      e.stopPropagation(); const c=toCanvas(e.clientX,e.clientY); S.connecting={source:id,x:c.x,y:c.y};
+    } else if(kind==="noderz"){
+      e.stopPropagation(); pushHistory(); resize={mode:"noderz",id};
+    } else if(kind==="poolw"){
+      e.stopPropagation(); const pool=getPool(id); pushHistory(); resize={mode:"poolw",id,x:pool.x};
+    } else if(kind==="poolwh"){
+      e.stopPropagation(); const pool=getPool(id); pushHistory(); resize={mode:"poolwh",id,x:pool.x,lastTop:laneY(pool,pool.lanes.length-1)};
+    } else if(kind==="laneh"){
+      e.stopPropagation(); const pool=getPool(id); const lane=pool.lanes.find(l=>l.id===el.dataset.lane);
+      const idx=pool.lanes.indexOf(lane); pushHistory(); resize={mode:"laneh",id,laneId:lane.id,top:laneY(pool,idx)};
+    }
+  });
+
+  svg.addEventListener("dblclick",(e)=>{
+    const el=e.target.closest("[data-kind]"); if(!el) return;
+    const kind=el.dataset.kind, id=el.dataset.id;
+    if(kind==="node") beginEdit("node",id);
+    else if(kind==="edge") beginEdit("edge",id);
+    else if(kind==="poolhdr") beginEdit("lane",el.dataset.lane);
+    else if(kind==="ept"){ const ed=S.edges.find(x=>x.id===id); if(ed&&ed.points){ pushHistory(); ed.points.splice(+el.dataset.i,1); if(!ed.points.length) delete ed.points; render(); } }
+  });
+
+  window.addEventListener("pointermove",(e)=>{
+    if(ghost){ ghost.x=e.clientX; ghost.y=e.clientY; showGhost(); return; }
+    if(panning){ S.pan={x:panning.px+(e.clientX-panning.sx),y:panning.py+(e.clientY-panning.sy)}; scheduleRender(); return; }
+    if(S.connecting){ const c=toCanvas(e.clientX,e.clientY); S.connecting.x=c.x; S.connecting.y=c.y; scheduleRender(); return; }
+    if(drag){
+      const c=toCanvas(e.clientX,e.clientY); let nx=snap(c.x-drag.ox), ny=snap(c.y-drag.oy);
+      if(drag.kind==="node"){
+        const n=getNode(drag.id);
+        // 他ノードの中心と揃ったら吸着（まっすぐ並べやすく）
+        const TH=7/S.zoom; S.guides=[];
+        let cx=nx+n.w/2, cy=ny+n.h/2;
+        let bestV=null,bestH=null;
+        for(const m of S.nodes){ if(m.id===n.id) continue;
+          const mcx=m.x+m.w/2, mcy=m.y+m.h/2;
+          if(Math.abs(cx-mcx)<TH && (!bestV||Math.abs(cx-mcx)<bestV.d)) bestV={x:mcx,d:Math.abs(cx-mcx),m};
+          if(Math.abs(cy-mcy)<TH && (!bestH||Math.abs(cy-mcy)<bestH.d)) bestH={y:mcy,d:Math.abs(cy-mcy),m};
+        }
+        if(bestV){ nx=bestV.x-n.w/2; cx=bestV.x; const ys=[n.y,bestV.m.y,n.y+n.h,bestV.m.y+bestV.m.h]; S.guides.push({type:"v",x:bestV.x,y1:Math.min(...ys)-12,y2:Math.max(...ys)+12}); }
+        if(bestH){ ny=bestH.y-n.h/2; cy=bestH.y; const xs=[n.x,bestH.m.x,n.x+n.w,bestH.m.x+bestH.m.w]; S.guides.push({type:"h",y:bestH.y,x1:Math.min(...xs)-12,x2:Math.max(...xs)+12}); }
+        n.x=nx;n.y=ny;
+      }
+      else if(drag.kind==="pool"){ const pool=getPool(drag.id); pool.x=nx;pool.y=ny; drag.kids.forEach(k=>{ const nn=getNode(k.id); if(nn){nn.x=nx+k.dx;nn.y=ny+k.dy;} }); }
+      scheduleRender(); return;
+    }
+    if(resize){
+      const c=toCanvas(e.clientX,e.clientY);
+      if(resize.mode==="ept"){
+        const ed=S.edges.find(x=>x.id===resize.id);
+        if(ed&&ed.points&&ed.points[resize.i]){ ed.points[resize.i]={x:snap(c.x),y:snap(c.y)}; }
+        scheduleRender(); return;
+      }
+      if(resize.mode==="noderz"){
+        const n=getNode(resize.id); if(n){ const def=NODE_DEFS[n.type];
+          let nw=Math.max(36,snap(c.x-n.x)), nh=Math.max(28,snap(c.y-n.y));
+          if(def.shape==="circle"||def.shape==="diamond"){ const sz=Math.max(nw,nh); n.w=sz; n.h=sz; } else { n.w=nw; n.h=nh; }
+        }
+        scheduleRender(); return;
+      }
+      const pool=getPool(resize.id);
+      if(resize.mode==="poolw"){ pool.w=Math.max(220,snap(c.x-resize.x)); }
+      else if(resize.mode==="poolwh"){ pool.w=Math.max(220,snap(c.x-resize.x)); const last=pool.lanes[pool.lanes.length-1]; if(last) last.h=Math.max(48,snap(c.y-resize.lastTop)); }
+      else if(resize.mode==="laneh"){ const l=pool.lanes.find(x=>x.id===resize.laneId); if(l) l.h=Math.max(48,snap(c.y-resize.top)); }
+      scheduleRender();
+    }
+  });
+
+  window.addEventListener("pointerup",(e)=>{
+    if(ghost){ const r=svg.getBoundingClientRect(); if(e.clientX>=r.left&&e.clientX<=r.right&&e.clientY>=r.top&&e.clientY<=r.bottom){ const c=toCanvas(e.clientX,e.clientY); addNode(ghost.type,c.x,c.y); } ghost=null; hideGhost(); }
+    if(S.connecting){ const c=toCanvas(e.clientX,e.clientY); const t=nodeAt(c.x,c.y);
+      if(t&&t.id!==S.connecting.source){ const ex=S.edges.some(ed=>ed.source===S.connecting.source&&ed.target===t.id); if(!ex){ pushHistory(); S.edges.push({id:uid(),source:S.connecting.source,target:t.id,label:"",style:"sequence"}); } }
+      S.connecting=null; render(); updateToolbar();
+    }
+    if(resize) renderProps();
+    if(S.guides.length){ S.guides=[]; scheduleRender(); }
+    drag=null; resize=null; panning=null;
+  });
+
+  svg.addEventListener("pointermove",(e)=>{
+    if(drag||resize||panning||S.connecting||ghost) return;
+    const el=e.target.closest('[data-kind="node"]'); const id=el?el.dataset.id:null;
+    if(id!==S.hover){ S.hover=id; scheduleRender(); }
+  });
+  svg.addEventListener("pointerleave",()=>{ if(S.hover){ S.hover=null; scheduleRender(); } });
+
+  svg.addEventListener("wheel",(e)=>{
+    if(!e.ctrlKey&&!e.metaKey) return; e.preventDefault();
+    const r=svg.getBoundingClientRect(); const mx=e.clientX-r.left,my=e.clientY-r.top;
+    const f=e.deltaY<0?1.1:0.9; const nz=Math.min(2.5,Math.max(0.3,S.zoom*f));
+    S.pan={x:mx-(mx-S.pan.x)*(nz/S.zoom),y:my-(my-S.pan.y)*(nz/S.zoom)}; S.zoom=nz; render(); updateToolbar();
+  },{passive:false});
+  function zoomBtn(f){ S.zoom=Math.min(2.5,Math.max(0.3,+(S.zoom*f).toFixed(2))); render(); updateToolbar(); }
+  function fitView(){
+    const boxes=[...S.nodes.filter(vis).map(n=>({x:n.x,y:n.y,w:n.w,h:n.h})), ...S.pools.filter(vis).map(p=>({x:p.x,y:p.y,w:p.w,h:poolH(p)}))];
+    const r=svg.getBoundingClientRect();
+    if(!boxes.length){ S.pan={x:60,y:60}; S.zoom=1; render(); updateToolbar(); return; }
+    const minX=Math.min(...boxes.map(b=>b.x)),minY=Math.min(...boxes.map(b=>b.y));
+    const maxX=Math.max(...boxes.map(b=>b.x+b.w)),maxY=Math.max(...boxes.map(b=>b.y+b.h));
+    const pad=60; const z=Math.min(2,(r.width-pad*2)/(maxX-minX),(r.height-pad*2)/(maxY-minY));
+    S.zoom=Math.min(2,Math.max(0.3,z||1)); S.pan={x:pad-minX*S.zoom+(r.width-pad*2-(maxX-minX)*S.zoom)/2,y:pad-minY*S.zoom};
+    render(); updateToolbar();
+  }
+
+  function download(name,blob){ const url=URL.createObjectURL(blob); const a=document.createElement("a"); a.href=url; a.download=name; a.click(); URL.revokeObjectURL(url); }
+  function toast(msg){ const t=$("toast"); t.textContent=msg; t.classList.add("show"); clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove("show"),2200); }
+  function exportJSON(){ download("process.bpmn.json", new Blob([JSON.stringify({version:2,meta:S.meta,phase:S.phase,nodes:S.nodes,edges:S.edges,pools:S.pools},null,2)],{type:"application/json"})); toast("JSONを保存しました"); }
+
+  function exportXLS(){
+    const ECRS={E:"E：排除",C:"C：結合",R:"R：再配置",S:"S：簡素化","":"維持"};
+    const rows=S.nodes.filter(n=>NODE_DEFS[n.type]&&NODE_DEFS[n.type].kind==="task")
+      .slice().sort((a,b)=> (a.y-b.y)||(a.x-b.x));
+    if(!rows.length){ toast("業務（タスク）がありません"); return; }
+    let totAs=0,totTo=0;
+    const body=rows.map((n,i)=>{
+      const as=asisH(n),to=tobeH(n),red=as-to; totAs+=as; totTo+=to;
+      const rate=as>0?(red/as*100):0;
+      const num=(v,d=1)=>`<td style="border:1px solid #BFC9D4;text-align:right;padding:5px 8px">${v.toFixed(d)}</td>`;
+      return `<tr>
+        <td style="border:1px solid #BFC9D4;text-align:center;padding:5px 8px">${i+1}</td>
+        <td style="border:1px solid #BFC9D4;padding:5px 8px">${esc(n.label||"")}</td>
+        <td style="border:1px solid #BFC9D4;padding:5px 8px">${esc(laneOf(n))}</td>
+        <td style="border:1px solid #BFC9D4;text-align:right;padding:5px 8px">${n.minutes!=null?n.minutes:""}</td>
+        <td style="border:1px solid #BFC9D4;text-align:right;padding:5px 8px">${n.freq!=null?n.freq:""}</td>
+        ${num(as)}
+        <td style="border:1px solid #BFC9D4;text-align:center;padding:5px 8px">${ECRS[n.ecrs||""]}</td>
+        ${num(to)}
+        <td style="border:1px solid #BFC9D4;text-align:right;padding:5px 8px;color:${red>0?'#0a7a43':'#475569'}">${red.toFixed(1)}</td>
+        <td style="border:1px solid #BFC9D4;text-align:right;padding:5px 8px">${rate.toFixed(0)}%</td>
+      </tr>`;
+    }).join("");
+    const totRed=totAs-totTo, totRate=totAs>0?(totRed/totAs*100):0;
+    const th=(t,al="center")=>`<th style="background:#04528F;color:#fff;border:1px solid #04528F;text-align:${al};padding:7px 8px;font-weight:bold">${t}</th>`;
+    const colcount=10;
+    const title=esc(S.meta.title||"業務量調査シート");
+    const dept=esc(S.meta.dept||"");
+    const today=new Date().toLocaleDateString("ja-JP");
+    const tbl=`<table style="border-collapse:collapse;font-family:メイリオ,Meiryo,sans-serif;font-size:12px">
+      <tr><td colspan="${colcount}" style="font-size:18px;font-weight:bold;color:#1F497D;padding:10px 4px">${title}</td></tr>
+      <tr><td colspan="${colcount}" style="font-size:12px;color:#475569;padding:0 4px 4px">${dept?("対象："+dept+"　／　"):""}作成日：${today}　／　単位：時間＝h（年間）</td></tr>
+      <tr>${th("No")}${th("業務名","left")}${th("担当")}${th("1回(分)")}${th("年間回数")}${th("As-Is<br>年間業務量(h)")}${th("ECRS")}${th("To-Be<br>年間業務量(h)")}${th("削減(h)")}${th("削減率")}</tr>
+      ${body}
+      <tr style="background:#EAF2F9;font-weight:bold">
+        <td colspan="5" style="border:1px solid #BFC9D4;text-align:right;padding:6px 8px">合計</td>
+        <td style="border:1px solid #BFC9D4;text-align:right;padding:6px 8px">${totAs.toFixed(1)}</td>
+        <td style="border:1px solid #BFC9D4"></td>
+        <td style="border:1px solid #BFC9D4;text-align:right;padding:6px 8px">${totTo.toFixed(1)}</td>
+        <td style="border:1px solid #BFC9D4;text-align:right;padding:6px 8px;color:#0a7a43">${totRed.toFixed(1)}</td>
+        <td style="border:1px solid #BFC9D4;text-align:right;padding:6px 8px">${totRate.toFixed(0)}%</td>
+      </tr>
+    </table>`;
+    const html=`<html xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="utf-8">
+      <!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet><x:Name>業務量</x:Name>
+      <x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]-->
+      </head><body>${tbl}</body></html>`;
+    const fname=(S.meta.title?S.meta.title.replace(/[\\/:*?"<>|]/g,"_"):"業務量シート")+".xls";
+    download(fname, new Blob(["\ufeff"+html],{type:"application/vnd.ms-excel;charset=utf-8"}));
+    toast("業務量シートを書き出しました");
+  }
+
+  // ---------- 業務量ビュー（画面内・Exce不要） ----------
+  function fmt(v){ return (Math.round(v*10)/10).toFixed(1); }
+  function workRows(){ return S.nodes.filter(n=>NODE_DEFS[n.type]&&NODE_DEFS[n.type].kind==="task").slice().sort((a,b)=>(a.y-b.y)||(a.x-b.x)); }
+  function openWorkView(){
+    const wv=$("workview"); const rows=workRows();
+    const ec=[["","維持"],["E","E：排除"],["C","C：結合"],["R","R：再配置"],["S","S：簡素化"]];
+    let body=rows.map((n,i)=>{
+      const sel=ec.map(o=>`<option value="${o[0]}" ${(n.ecrs||"")===o[0]?"selected":""}>${o[1]}</option>`).join("");
+      return `<tr data-id="${n.id}">
+        <td class="num">${i+1}</td>
+        <td><input data-f="label" value="${esc(n.label||"")}"></td>
+        <td>${esc(laneOf(n))||'<span style="color:#cbd5e1">—</span>'}</td>
+        <td style="font-size:12px;color:#475569">${esc((n.channels||[]).join("・"))}${n.system?`<span style="color:#94a3b8"> / ${esc(n.system)}</span>`:""}</td>
+        <td><input class="num" type="number" data-f="minutes" value="${n.minutes!=null?n.minutes:""}" placeholder="0"></td>
+        <td><input class="num" type="number" data-f="freq" value="${n.freq!=null?n.freq:""}" placeholder="0"></td>
+        <td class="num c-as">0.0</td>
+        <td><select data-f="ecrs">${sel}</select></td>
+        <td><input class="num" type="number" data-f="tmin" value="${n.tmin!=null&&n.tmin!==""?n.tmin:""}" placeholder="現状"></td>
+        <td><input class="num" type="number" data-f="tfreq" value="${n.tfreq!=null&&n.tfreq!==""?n.tfreq:""}" placeholder="現状"></td>
+        <td class="num c-to">0.0</td>
+        <td class="num c-red">0.0</td>
+        <td class="num c-rate">0%</td>
+      </tr>`;
+    }).join("");
+    if(!rows.length) body=`<tr><td colspan="13" style="text-align:center;color:#94a3b8;padding:28px">図に「タスク／サブプロセス」を置くと、ここに業務が並びます。</td></tr>`;
+    wv.innerHTML=`<div class="wv-panel">
+      <div class="wv-head"><div class="wv-title">業務量　<span style="color:var(--muted);font-weight:400;font-size:13px">${esc(S.meta.title||"プロセス名は背景クリック→右パネルで設定")}</span></div><button class="wv-close" id="wv-x">×</button></div>
+      <div class="wv-summary" id="wv-sum"></div>
+      <div class="wv-tablewrap"><table class="wv-t"><thead><tr>
+        <th>No</th><th style="text-align:left">業務名</th><th>担当</th><th>手段・システム</th><th>1回(分)</th><th>年間回数</th><th>As-Is(h)</th><th>ECRS</th><th>To-Be1回</th><th>To-Be回数</th><th>To-Be(h)</th><th>削減(h)</th><th>削減率</th>
+      </tr></thead><tbody id="wv-body">${body}</tbody>
+      <tfoot><tr class="tr-total"><td colspan="6" style="text-align:right">合計</td><td class="num" id="t-as">0.0</td><td></td><td></td><td></td><td class="num" id="t-to">0.0</td><td class="num" id="t-red">0.0</td><td class="num" id="t-rate">0%</td></tr></tfoot>
+      </table></div>
+      <div class="wv-foot"><button id="wv-copy">表をコピー</button><button class="primary" id="wv-done">閉じる</button></div>
+    </div>`;
+    wv.style.display="flex"; recalcWV();
+    $("wv-x").onclick=closeWorkView; $("wv-done").onclick=closeWorkView; $("wv-copy").onclick=copyWorkTSV;
+    wv.onclick=(e)=>{ if(e.target===wv) closeWorkView(); };
+    const tb=$("wv-body");
+    const apply=(e)=>{ const tr=e.target.closest("tr[data-id]"); if(!tr)return; const n=getNode(tr.dataset.id); if(!n)return;
+      const f=e.target.dataset.f, v=e.target.value;
+      if(f==="label") n.label=v;
+      else if(f==="ecrs") n.ecrs=v;
+      else if(f==="minutes") n.minutes=v===""?undefined:Number(v);
+      else if(f==="freq") n.freq=v===""?undefined:Number(v);
+      else if(f==="tmin") n.tmin=v;
+      else if(f==="tfreq") n.tfreq=v;
+      recalcWV();
+    };
+    tb.addEventListener("input",apply); tb.addEventListener("change",apply);
+  }
+  function recalcWV(){
+    let tAs=0,tTo=0;
+    const b=$("wv-body"); if(!b) return;
+    b.querySelectorAll("tr[data-id]").forEach(tr=>{
+      const n=getNode(tr.dataset.id); if(!n)return;
+      const as=asisH(n),to=tobeH(n),red=as-to,rate=as>0?red/as*100:0; tAs+=as;tTo+=to;
+      tr.querySelector(".c-as").textContent=fmt(as);
+      tr.querySelector(".c-to").textContent=fmt(to);
+      const rc=tr.querySelector(".c-red"); rc.textContent=fmt(red); rc.style.color=red>0?"#0a7a43":"#94a3b8";
+      tr.querySelector(".c-rate").textContent=Math.round(rate)+"%";
+    });
+    const tRed=tAs-tTo,tRate=tAs>0?tRed/tAs*100:0;
+    const sum=$("wv-sum");
+    if(sum) sum.innerHTML=
+      `<div class="wv-card"><div class="l">As-Is 合計</div><div class="v">${fmt(tAs)}<span style="font-size:12px;font-weight:400"> h/年</span></div></div>`+
+      `<div class="wv-card"><div class="l">To-Be 合計</div><div class="v">${fmt(tTo)}<span style="font-size:12px;font-weight:400"> h/年</span></div></div>`+
+      `<div class="wv-card red"><div class="l">削減</div><div class="v">${fmt(tRed)}<span style="font-size:12px;font-weight:400"> h/年</span></div></div>`+
+      `<div class="wv-card red"><div class="l">削減率</div><div class="v">${Math.round(tRate)}<span style="font-size:12px;font-weight:400"> %</span></div></div>`;
+    const setT=(id,val)=>{const el=$(id);if(el)el.textContent=val;};
+    setT("t-as",fmt(tAs));setT("t-to",fmt(tTo));setT("t-red",fmt(tRed));setT("t-rate",Math.round(tRate)+"%");
+  }
+  function closeWorkView(){ $("workview").style.display="none"; render(); }
+  function copyWorkTSV(){
+    const rows=workRows();
+    const ECL={E:"E排除",C:"C結合",R:"R再配置",S:"S簡素化","":"維持"};
+    const head=["No","業務名","担当","手段・システム","1回(分)","年間回数","As-Is(h)","ECRS","To-Be(h)","削減(h)","削減率"];
+    const lines=[head.join("\t")];
+    rows.forEach((n,i)=>{ const as=asisH(n),to=tobeH(n),red=as-to,rate=as>0?red/as*100:0;
+      const ch=(n.channels||[]).join("・")+(n.system?(" / "+n.system):"");
+      lines.push([i+1,(n.label||"").replace(/\t|\n/g," "),laneOf(n),ch,n.minutes!=null?n.minutes:"",n.freq!=null?n.freq:"",fmt(as),ECL[n.ecrs||""],fmt(to),fmt(red),Math.round(rate)+"%"].join("\t")); });
+    const tsv=lines.join("\n");
+    const done=()=>toast("表をコピーしました（メールや資料に貼れます）");
+    if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(tsv).then(done).catch(()=>fallbackCopy(tsv,done)); }
+    else fallbackCopy(tsv,done);
+  }
+  function fallbackCopy(text,done){ const ta=document.createElement("textarea"); ta.value=text; ta.style.position="fixed"; ta.style.opacity="0"; document.body.appendChild(ta); ta.focus(); ta.select(); try{ document.execCommand("copy"); done(); }catch(e){ toast("コピーできませんでした"); } ta.remove(); }
+
+  function buildCleanSVG(){
+    const vn=S.nodes.filter(vis), vp=S.pools.filter(vis);
+    const ve=S.edges.filter(e=>vis(e)&&vis(getNode(e.source))&&vis(getNode(e.target)));
+    const boxes=[...vn.map(n=>({x:n.x,y:n.y,w:n.w,h:n.h})), ...vp.map(p=>({x:p.x,y:p.y,w:p.w,h:poolH(p)}))];
+    let minX=0,minY=0,w=800,h=600;
+    if(boxes.length){ minX=Math.min(...boxes.map(b=>b.x))-40; minY=Math.min(...boxes.map(b=>b.y))-40; w=Math.max(...boxes.map(b=>b.x+b.w))+40-minX; h=Math.max(...boxes.map(b=>b.y+b.h))+40-minY; }
+    let body="";
+    vp.forEach(p=>body+=poolSVG(p,true));
+    ve.forEach(e=>body+=edgeSVG(e,true));
+    vn.forEach(n=>body+=nodeSVG(n,true));
+    const defs=document.querySelector("defs").innerHTML;
+    const tag=S.phase==="tobe"?"To-Be":S.phase==="canbe"?"Can-Be":"As-Is";
+    const ttl=S.meta.title?`${esc(S.meta.title)}（${tag}）`:tag;
+    const titleSVG=`<text x="${minX+16}" y="${minY+26}" font-size="15" font-weight="700" fill="#1F497D" font-family="${SVGFONT}">${ttl}</text>`;
+    const credit=`<text x="${minX+w-12}" y="${minY+h-12}" text-anchor="end" font-size="11" fill="#94a3b8" font-family="${SVGFONT}">© Primal Corp.</text>`;
+    const out=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="${minX} ${minY} ${w} ${h}" width="${w}" height="${h}"><defs>${defs}</defs><rect x="${minX}" y="${minY}" width="${w}" height="${h}" fill="#ffffff"/>${titleSVG}${body}${credit}</svg>`;
+    return {svg:out,w,h};
+  }
+  function exportSVG(){ const {svg}=buildCleanSVG(); download("process.svg", new Blob([svg],{type:"image/svg+xml"})); toast("SVGを書き出しました"); }
+  function exportPNG(){
+    const {svg,w,h}=buildCleanSVG(); const scale=2; const img=new Image();
+    const url=URL.createObjectURL(new Blob([svg],{type:"image/svg+xml;charset=utf-8"}));
+    img.onload=()=>{ const cv=document.createElement("canvas"); cv.width=w*scale;cv.height=h*scale; const ctx=cv.getContext("2d"); ctx.fillStyle="#fff";ctx.fillRect(0,0,cv.width,cv.height); ctx.scale(scale,scale); ctx.drawImage(img,0,0); URL.revokeObjectURL(url); cv.toBlob(b=>{download("process.png",b); toast("PNGを書き出しました");},"image/png"); };
+    img.onerror=()=>{ URL.revokeObjectURL(url); toast("PNG書き出しに失敗。SVGをお試しください"); };
+    img.src=url;
+  }
+  function copyImage(){
+    const {svg,w,h}=buildCleanSVG(); const scale=2; const img=new Image();
+    const url=URL.createObjectURL(new Blob([svg],{type:"image/svg+xml;charset=utf-8"}));
+    img.onload=()=>{
+      const cv=document.createElement("canvas"); cv.width=w*scale;cv.height=h*scale;
+      const ctx=cv.getContext("2d"); ctx.fillStyle="#fff";ctx.fillRect(0,0,cv.width,cv.height); ctx.scale(scale,scale); ctx.drawImage(img,0,0); URL.revokeObjectURL(url);
+      cv.toBlob(async b=>{
+        try{
+          if(navigator.clipboard&&window.ClipboardItem){ await navigator.clipboard.write([new ClipboardItem({"image/png":b})]); toast("図をコピーしました（パワポにCtrl+Vで貼れます）"); }
+          else throw new Error("no clipboard");
+        }catch(err){ download("process.png",b); toast("コピー不可のためPNGを保存しました（貼り付けはこの画像で）"); }
+      },"image/png");
+    };
+    img.onerror=()=>{ URL.revokeObjectURL(url); toast("コピーに失敗しました"); };
+    img.src=url;
+  }
+  const PHASE_LABEL={asis:"As-Is（現状）",canbe:"Can-Be（すぐ着手）",tobe:"To-Be（あるべき姿）"};
+  function setPhase(ph){
+    S.phase=ph; S.sel=null;
+    $("ph-asis").classList.toggle("active",ph==="asis");
+    $("ph-canbe").classList.toggle("active",ph==="canbe");
+    $("ph-tobe").classList.toggle("active",ph==="tobe");
+    const b=$("phasebadge"); if(b){ b.textContent=PHASE_LABEL[ph]||ph; b.className=ph; }
+    render(); renderProps(); updateToolbar();
+    toast(PHASE_LABEL[ph]+" を表示中");
+  }
+
+  // ---------- AI改善案（To-Be / Can-Be） ----------
+  const AI_MODEL="claude-sonnet-4-5-20250929"; // 最新モデル名に変更可
+  function buildAsIsSummary(){
+    const flowKinds={task:1,event:1,gateway:1};
+    const tasks=S.nodes.filter(n=>vis(n)&&NODE_DEFS[n.type]&&flowKinds[NODE_DEFS[n.type].kind])
+      .slice().sort((a,b)=>(a.x-b.x)||(a.y-b.y));
+    const idName={};
+    const tlist=tasks.map((n,i)=>{ const nm=n.label||("工程"+(i+1)); idName[n.id]=nm;
+      const o={name:nm, lane:laneOf(n), kind:NODE_DEFS[n.type].kind};
+      if(n.minutes) o.minutes=Number(n.minutes); if(n.freq) o.freq=Number(n.freq);
+      if(asisH(n)>0) o.asisHours=Math.round(asisH(n)*10)/10;
+      if(n.channels&&n.channels.length) o.channels=n.channels.slice();
+      if(n.system) o.system=n.system;
+      return o; });
+    const flows=S.edges.filter(e=>vis(e)).map(e=>({from:idName[e.source]||"",to:idName[e.target]||"",label:e.label||""})).filter(f=>f.from&&f.to&&f.label!==undefined).map(f=>{ if(!f.label) delete f.label; return f; });
+    const issues=S.nodes.filter(n=>vis(n)&&NODE_DEFS[n.type]&&NODE_DEFS[n.type].kind==="issue").map(n=>n.label).filter(Boolean);
+    const lanes=[]; S.pools.filter(vis).forEach(p=>p.lanes.forEach(l=>{ if(l.label&&!lanes.includes(l.label)) lanes.push(l.label); }));
+    const totalH=Math.round(tlist.reduce((a,t)=>a+(t.asisHours||0),0)*10)/10;
+    const s={process:S.meta.title||"（名称未設定）", company:S.meta.dept||"", lanes, tasks:tlist, flows};
+    if(issues.length) s.issues=issues;
+    if(totalH>0) s.totalAsIsHours=totalH;
+    return s;
+  }
+  function buildPrompt(){
+    const s=buildAsIsSummary();
+    return `あなたは民間企業の業務改革（BPR）とPMI（M&A後の業務統合）を支援するコンサルタントです。
+以下のAs-Is（現状）プロセスを分析し、改善案を必ず5つ提案してください（Can-Be 2案 ＋ To-Be 3案）。
+
+【必ず5案・性格を分ける】
+・Can-Be①「すぐ着手（運用）」＝現行システム・体制のまま、運用ルールや役割分担の見直しで実現するQuick Win。type="Can-Be"
+・Can-Be②「現行内ツール活用」＝既存システム＋Excel/軽微なRPA等、既存資産の範囲で実現。type="Can-Be"
+・To-Be①「標準」＝一般的なSaaS/RPA導入と一部自動化のバランス案。type="To-Be"
+・To-Be②「連携強化」＝システム間連携・自動化を広げ、手作業と担当間の受け渡しを大きく減らす。type="To-Be"
+・To-Be③「抜本」＝システム統合・大幅な自動化/デジタル化を前提にした理想形。type="To-Be"
+
+【改善の観点】ECRS（排除E・結合C・再配置R・簡素化S）＋自動化・標準化。担当（レーン）をまたぐ受け渡し回数の削減も重視。minutes×freq÷60が年間工数(h)。reductionHours＝As-Is合計との差の概算。
+各工程のchannels（電話/メール/紙・手書き/対面/FAX/システム/Excel/チャット/Web）とsystem（使用システム名）に注目し、アナログ手段（電話・紙・FAX・対面・手作業のメール/Excel）をWeb化・システム化・自動連携に置き換える改善を具体的に盛り込むこと。各案のtasksにも改善後のchannels/systemを記載する。
+
+【プロセス図のルール：厳守（これを破ると図が壊れる）】
+1. 各案の tasks は「開始」(kind:"start")で始まり「完了」(kind:"end")で終わる。startは1個、endは1個以上。
+2. tasksは5〜12個。工程名(name)は案内で一意。flowsのfrom/toはtasksのnameと一字一句一致させる。
+3. すべてのtaskは必ずflowsで繋がっていること（どこからも繋がらない孤立工程は禁止）。
+4. 分岐は kind:"gateway"（工程名は「〜判定」等）を使い、そこから出るflowには必ずlabel（例：「承認」「差戻し」「OK」「NG」）を付ける。
+5. 差戻し・再作業のループはOK（後の工程から前の工程へのflow）。ただし多用しない（1案に1つまで）。
+6. lanesは2〜5個。全taskのlaneはlanes配列のいずれかと一致させる。start/endにもlaneを付ける。
+7. orderは開始から完了へ向かう通し番号（分岐先は同じ番号でよい）。
+8. minutes/freqは、As-Isから変わらない工程はAs-Isの値を引き継ぎ、自動化する工程は現実的に減らす。廃止した工程はtasksに入れない。
+
+【出力形式：厳守】あいさつ・説明文なしで、次のスキーマのJSONのみ出力（\`\`\`jsonコードブロック可）。plansは必ず5件。
+
+{"plans":[
+  {"title":"案名","type":"Can-Be","concept":"1〜2文のコンセプト","changes":["どの工程をE/C/R/S/自動化したか"],"reductionHours":0,
+   "lanes":["営業","経理"],
+   "tasks":[
+     {"name":"開始","lane":"営業","kind":"start","order":1},
+     {"name":"受注入力","lane":"営業","kind":"task","minutes":10,"freq":1200,"order":2,"channels":["メール","Excel"],"system":"基幹システム"},
+     {"name":"承認判定","lane":"経理","kind":"gateway","order":3},
+     {"name":"請求発行","lane":"経理","kind":"task","minutes":5,"freq":1200,"order":4},
+     {"name":"完了","lane":"経理","kind":"end","order":5}
+   ],
+   "flows":[
+     {"from":"開始","to":"受注入力"},
+     {"from":"受注入力","to":"承認判定"},
+     {"from":"承認判定","to":"請求発行","label":"承認"},
+     {"from":"承認判定","to":"受注入力","label":"差戻し"},
+     {"from":"請求発行","to":"完了"}
+   ]}
+]}
+
+【As-Is（現状）】
+${JSON.stringify(s,null,2)}`;
+  }
+  function parsePlans(text){
+    if(!text||!text.trim()) throw new Error("空です");
+    let t=text.trim().replace(/^```(json)?/i,"").replace(/```$/,"").trim();
+    let obj;
+    try{ obj=JSON.parse(t); }
+    catch(e){ const i=t.indexOf("{"), j=t.lastIndexOf("}"); if(i<0||j<0) throw new Error("JSONが見つかりません"); obj=JSON.parse(t.slice(i,j+1)); }
+    const plans=obj.plans||obj;
+    if(!Array.isArray(plans)) throw new Error("plans配列がありません");
+    return plans;
+  }
+  function applyPlan(plan){
+    pushHistory();
+    const ph=(plan.type&&/can/i.test(plan.type))?"canbe":"tobe";
+    S.nodes=S.nodes.filter(n=>!(n.aiGen&&n.phase===ph));
+    S.edges=S.edges.filter(e=>!(e.aiGen&&e.phase===ph));
+    S.pools=S.pools.filter(p=>!(p.aiGen&&p.phase===ph));
+    // レーン集合（laneなしタスクは前後フローから推定）
+    let lanes=(plan.lanes&&plan.lanes.length)?plan.lanes.slice():[];
+    const tasks=(plan.tasks||[]).slice();
+    tasks.forEach(t=>{ if(t.lane&&!lanes.includes(t.lane)) lanes.push(t.lane); });
+    if(!lanes.length) lanes=[""];
+    const idx={}; tasks.forEach((t,i)=>{ if(t.name&&idx[t.name]==null) idx[t.name]=i; });
+    const flows=(plan.flows||[]).filter(f=>idx[f.from]!=null&&idx[f.to]!=null&&f.from!==f.to);
+    tasks.forEach((t,i)=>{ if(!t.lane){
+      const inn=flows.find(f=>idx[f.to]===i&&tasks[idx[f.from]].lane);
+      const out=flows.find(f=>idx[f.from]===i&&tasks[idx[f.to]].lane);
+      t.lane = inn?tasks[idx[inn.from]].lane : out?tasks[idx[out.to]].lane : lanes[0];
+    }});
+    const kindMap={start:"start",end:"end",gateway:"gatewayX",subprocess:"subprocess",task:"task",event:"start"};
+    // フロー接続から列（深さ）を決定
+    const adj=tasks.map(()=>[]); const indeg=tasks.map(()=>0);
+    flows.forEach(f=>{ adj[idx[f.from]].push(idx[f.to]); indeg[idx[f.to]]++; });
+    const depth=tasks.map(()=>0); const indeg2=indeg.slice(); const q=[]; const seen=tasks.map(()=>false);
+    tasks.forEach((t,i)=>{ if(indeg[i]===0){ q.push(i); seen[i]=true; } });
+    let qi=0;
+    while(qi<q.length){ const u=q[qi++]; adj[u].forEach(v=>{ depth[v]=Math.max(depth[v],depth[u]+1); if(--indeg2[v]===0&&!seen[v]){ seen[v]=true; q.push(v); } }); }
+    tasks.forEach((t,i)=>{ if(!seen[i]) depth[i]=Math.max(0,(t.order||1)-1); });
+    // レーン行数（同列同レーンの重なり分だけ行を増やす）
+    const laneIdxOf=t=>Math.max(0,lanes.indexOf(t.lane));
+    const cellCount={}; const laneRows=lanes.map(()=>1);
+    tasks.forEach((t,i)=>{ const li=laneIdxOf(t); const key=depth[i]+"_"+li; const c=(cellCount[key]||0)+1; cellCount[key]=c; laneRows[li]=Math.max(laneRows[li],c); });
+    const rowH=104, gap=200, headerW=140, baseX=80, baseY=80;
+    const laneObjs=lanes.map((l,i)=>({id:uid(),label:l||"",h:Math.max(130,laneRows[i]*rowH+26)}));
+    const pool={id:uid(),x:baseX,y:baseY,w:400,headerW,lanes:laneObjs,phase:ph,aiGen:true};
+    const laneTop=[]; { let y=baseY; laneObjs.forEach(l=>{ laneTop.push(y); y+=l.h; }); }
+    const cellUsed={}; const nameToId={}; const meta={}; let maxCol=1;
+    tasks.forEach((t,i)=>{
+      const type=kindMap[t.kind]||"task"; const d=NODE_DEFS[type];
+      const li=laneIdxOf(t), col=depth[i]; maxCol=Math.max(maxCol,col+1);
+      const key=col+"_"+li; const slot=(cellUsed[key]||0); cellUsed[key]=slot+1;
+      const per=laneObjs[li].h/laneRows[li];
+      const colCx=baseX+headerW+40+col*gap+66;      // 列の中心X
+      const cy=laneTop[li]+per*slot+per/2;          // 行の中心Y（完全整列）
+      const node={id:uid(),type,x:Math.round(colCx-d.w/2),y:Math.round(cy-d.h/2),w:d.w,h:d.h,label:t.name||d.label,fill:d.fill,stroke:d.stroke,phase:ph,aiGen:true};
+      if(t.minutes) node.minutes=Number(t.minutes); if(t.freq) node.freq=Number(t.freq);
+      if(Array.isArray(t.channels)&&t.channels.length) node.channels=t.channels.filter(c=>CHANNELS.some(o=>o.k===c));
+      if(t.system) node.system=t.system;
+      nameToId[t.name]=node.id; meta[t.name]={col,node}; S.nodes.push(node);
+    });
+    pool.w=headerW+40+maxCol*gap+20;
+    S.pools.push(pool);
+    // エッジ：衝突しないwaypointを自動発行（列間の空きを縦移動に使う）
+    flows.forEach(f=>{
+      const a=nameToId[f.from],b=nameToId[f.to]; if(!a||!b||a===b) return;
+      const s=meta[f.from].node, t=meta[f.to].node;
+      const edge={id:uid(),source:a,target:b,label:f.label||"",style:"sequence",phase:ph,aiGen:true};
+      const scx=s.x+s.w/2, scy=s.y+s.h/2, tcy=t.y+t.h/2, tcx=t.x+t.w/2;
+      if(meta[f.to].col>meta[f.from].col){
+        if(Math.abs(scy-tcy)>=10) edge.points=[{x:s.x+s.w+34,y:scy},{x:s.x+s.w+34,y:tcy}];
+      } else {
+        const corridor=Math.max(pool.y+14, Math.min(s.y,t.y)-30);
+        edge.points=[{x:scx,y:corridor},{x:tcx,y:corridor}];
+      }
+      S.edges.push(edge);
+    });
+    S.sel=null; setPhase(ph); closeAI(); setTimeout(fitView,40);
+    toast((ph==="canbe"?"Can-Be":"To-Be")+"案を図に取り込みました");
+  }
+  function renderPlans(plans){
+    const box=$("ai-plans"); if(!box) return;
+    window._aiPlans=plans;
+    const card=(p,i)=>{
+      const isCan=p.type&&/can/i.test(p.type);
+      const changes=(p.changes||[]).map(c=>`<li>${esc(c)}</li>`).join("");
+      const red=p.reductionHours?`<div class="red">想定削減：約 ${esc(String(p.reductionHours))} 時間/年</div>`:"";
+      const bcol=isCan?"background:rgba(180,83,9,.12);color:#B45309":"background:rgba(10,122,67,.12);color:#0a7a43";
+      return `<div class="ai-plan"><div class="pt"><h4>${esc(p.title||("案"+(i+1)))}</h4><span class="badge" style="${bcol}">${esc(p.type||"")}</span></div>
+        ${p.concept?`<div class="concept">${esc(p.concept)}</div>`:""}
+        ${changes?`<ul>${changes}</ul>`:""}
+        ${red}
+        <button class="ai-btn primary" data-i="${i}">この案を${isCan?"Can-Be":"To-Be"}タブに取り込む</button></div>`;
+    };
+    const can=[],tob=[];
+    plans.forEach((p,i)=>{ (p.type&&/can/i.test(p.type)?can:tob).push(card(p,i)); });
+    let html="";
+    if(can.length) html+=`<div class="cap" style="color:#B45309;margin-top:6px">Can-Be（すぐ着手できる案）</div>`+can.join("");
+    if(tob.length) html+=`<div class="cap" style="color:#0a7a43;margin-top:10px">To-Be（あるべき姿の案）</div>`+tob.join("");
+    box.innerHTML=html;
+    box.querySelectorAll("button[data-i]").forEach(b=>{ b.onclick=()=>applyPlan(window._aiPlans[+b.dataset.i]); });
+  }
+  async function callClaude(){
+    const key=$("ai-key").value.trim(); const model=($("ai-model").value.trim()||AI_MODEL);
+    if(!key){ toast("APIキーを入れてください（任意機能）"); return; }
+    const st=$("ai-gen"); st.textContent="生成中…"; st.disabled=true;
+    try{
+      const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",
+        headers:{"content-type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
+        body:JSON.stringify({model,max_tokens:4000,messages:[{role:"user",content:buildPrompt()}]})});
+      const data=await res.json();
+      if(data.error) throw new Error(data.error.message||"APIエラー");
+      const text=(data.content||[]).map(c=>c.text||"").join("");
+      $("ai-resp").value=text;
+      renderPlans(parsePlans(text));
+      toast("3案を生成しました");
+    }catch(err){ toast("生成失敗："+(err.message||err)); }
+    finally{ st.textContent="Claudeで直接生成"; st.disabled=false; }
+  }
+  function openAI(){
+    const wv=$("aiview");
+    wv.innerHTML=`<div class="wv-panel">
+      <div class="wv-head"><div class="wv-title">AIでTo-Be / Can-Be案を作る</div><button class="wv-close" id="ai-x">×</button></div>
+      <div class="ai-body">
+        <div class="ai-step">
+          <div class="h"><span class="num">1</span>このプロンプトをコピーして Claude に貼る</div>
+          <textarea class="ai-ta" id="ai-prompt" rows="8" readonly></textarea>
+          <div class="ai-row"><button class="ai-btn primary" id="ai-copy">プロンプトをコピー</button>
+          <span class="ai-note">As-Is（現状の工程・担当・業務量・課題）が自動で入っています。</span></div>
+        </div>
+        <div class="ai-step">
+          <div class="h"><span class="num">2</span>Claude の回答（JSON）を貼って取り込む</div>
+          <textarea class="ai-ta" id="ai-resp" rows="6" placeholder='ここに Claude が返した {"plans":[...]} を貼り付け'></textarea>
+          <div class="ai-row"><button class="ai-btn primary" id="ai-load">案を読み込む</button></div>
+        </div>
+        <div id="ai-plans" class="ai-plans"></div>
+        <details class="ai-details"><summary>APIキーで直接生成する（上級者向け・任意）</summary>
+          <div class="ai-row"><input type="password" id="ai-key" placeholder="Anthropic APIキー (sk-...)" style="flex:1;min-width:200px">
+          <input type="text" id="ai-model" placeholder="モデル名" value="${AI_MODEL}" style="width:230px">
+          <button class="ai-btn" id="ai-gen">Claudeで直接生成</button></div>
+          <p class="ai-note">※As-Is情報が Anthropic に送信されます。機密案件は社内ルールに従ってください。キーは保存されません（この画面のみ）。</p>
+        </details>
+      </div>
+      <div class="wv-foot"><button class="ai-btn" id="ai-done">閉じる</button></div>
+    </div>`;
+    wv.style.display="flex";
+    $("ai-prompt").value=buildPrompt();
+    $("ai-x").onclick=closeAI; $("ai-done").onclick=closeAI;
+    wv.onclick=(e)=>{ if(e.target===wv) closeAI(); };
+    $("ai-copy").onclick=()=>{ const ta=$("ai-prompt"); const done=()=>toast("プロンプトをコピーしました。Claudeに貼ってください"); if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(ta.value).then(done).catch(()=>{ta.select();document.execCommand("copy");done();}); } else { ta.select(); document.execCommand("copy"); done(); } };
+    $("ai-load").onclick=()=>{ try{ renderPlans(parsePlans($("ai-resp").value)); toast("案を読み込みました"); }catch(err){ toast("読み込み失敗："+(err.message||err)); } };
+    $("ai-gen").onclick=callClaude;
+  }
+  function closeAI(){ $("aiview").style.display="none"; }
+  function duplicateSel(){
+    if(!S.sel||S.sel.kind!=="node") return; const n=getNode(S.sel.id); if(!n) return;
+    pushHistory(); const c=JSON.parse(JSON.stringify(n)); c.id=uid(); c.x=snap(n.x+20); c.y=snap(n.y+20);
+    S.nodes.push(c); S.sel={kind:"node",id:c.id}; render(); renderProps(); updateToolbar();
+  }
+  function scaleSel(f){
+    if(!S.sel||S.sel.kind!=="node") return; const n=getNode(S.sel.id); if(!n) return;
+    pushHistory(); const def=NODE_DEFS[n.type];
+    let nw=Math.max(36,Math.round(n.w*f)), nh=Math.max(28,Math.round(n.h*f));
+    if(def.shape==="circle"||def.shape==="diamond"){ const s=Math.max(nw,nh); n.w=s; n.h=s; } else { n.w=nw; n.h=nh; }
+    render(); renderProps();
+  }
+  function importJSON(ev){
+    const f=ev.target.files&&ev.target.files[0]; if(!f) return; const rd=new FileReader();
+    rd.onload=()=>{ try{ const d=JSON.parse(rd.result); pushHistory(); S.nodes=d.nodes||[];S.edges=d.edges||[];S.pools=d.pools||[]; S.meta=d.meta||{title:"",dept:""}; if(d.phase) setPhase(d.phase); S.sel=null; render(); renderProps(); updateToolbar(); setTimeout(fitView,50); toast("読み込みました"); }catch(err){ toast("読み込めませんでした（JSON形式を確認）"); } };
+    rd.readAsText(f); ev.target.value="";
+  }
+
+  window.addEventListener("keydown",(e)=>{
+    if($("workview").style.display==="flex"){ if(e.key==="Escape") closeWorkView(); return; }
+    if($("aiview").style.display==="flex"){ if(e.key==="Escape") closeAI(); return; }
+    if(S.editing) return; const tag=(e.target.tagName||"").toLowerCase();
+    if(tag==="input"||tag==="textarea"||tag==="select") return;
+    if(e.key==="Delete"||e.key==="Backspace"){ e.preventDefault(); deleteSel(); }
+    else if(e.key==="Escape"){ S.connecting=null; S.sel=null; render(); renderProps(); updateToolbar(); }
+    else if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==="z"&&!e.shiftKey){ e.preventDefault(); undo(); }
+    else if((e.metaKey||e.ctrlKey)&&(e.key.toLowerCase()==="y"||(e.key.toLowerCase()==="z"&&e.shiftKey))){ e.preventDefault(); redo(); }
+    else if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==="d"){ e.preventDefault(); duplicateSel(); }
+    else if((e.key==="+"||e.key==="="||e.key==="]")&&S.sel&&S.sel.kind==="node"){ e.preventDefault(); scaleSel(1.15); }
+    else if((e.key==="-"||e.key==="_"||e.key==="[")&&S.sel&&S.sel.kind==="node"){ e.preventDefault(); scaleSel(0.87); }
+    else if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==="c"){ if(S.sel&&S.sel.kind==="node"){ clip=JSON.parse(JSON.stringify(getNode(S.sel.id))); toast("コピーしました"); } }
+    else if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==="v"){ if(clip){ e.preventDefault(); pushHistory(); const c=JSON.parse(JSON.stringify(clip)); c.id=uid(); c.x=snap(c.x+24); c.y=snap(c.y+24); S.nodes.push(c); S.sel={kind:"node",id:c.id}; render(); renderProps(); updateToolbar(); } }
+  });
+
+  $("undo").onclick=undo; $("redo").onclick=redo; $("addpool").onclick=addPool; $("del").onclick=deleteSel;
+  $("ph-asis").onclick=()=>setPhase("asis"); $("ph-canbe").onclick=()=>setPhase("canbe"); $("ph-tobe").onclick=()=>setPhase("tobe");
+  $("grid").onclick=()=>{ S.showGrid=!S.showGrid; render(); updateToolbar(); };
+  $("zin").onclick=()=>zoomBtn(1.15); $("zout").onclick=()=>zoomBtn(0.87); $("fit").onclick=fitView;
+  $("savejson").onclick=exportJSON; $("svg-exp").onclick=exportSVG; $("png-exp").onclick=exportPNG; $("copy-img").onclick=copyImage; $("xls-exp").onclick=openWorkView; $("ai-btn").onclick=openAI; $("file").onchange=importJSON;
+
+  renderPalette(); render(); renderProps(); updateToolbar();
+})();
+</script>
+</body>
+</html>
